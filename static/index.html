@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Video Kiosk Minimal</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <!-- Barra laterale overlay -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h3>Libreria Video</h3>
+      <button id="closeSidebar" title="Chiudi">✕</button>
+    </div>
+    <div id="tree"></div>
+
+    <!-- Sezione impostazioni -->
+    <div id="settings">
+      <h4>🎛️ Impostazioni</h4>
+      <label>
+        <input type="checkbox" id="randomCheck" checked>
+        Durata casuale
+      </label>
+      <div id="durationContainer">
+        <label for="durationSlider">Durata spezzone: <span id="durValue">10</span>s</label>
+        <input type="range" min="2" max="60" value="10" id="durationSlider">
+      </div>
+    </div>
+  </div>
+
+  <!-- Player principale -->
+  <div id="viewer">
+    <video id="player" autoplay playsinline></video>
+
+    <div id="controls">
+      <button id="menuBtn" title="Apri menu">☰</button>
+      <button id="zoomBtn" title="Zoom video">🔍</button>
+      <button id="nextBtn" title="Prossimo clip">⏭️</button>
+    </div>
+  </div>
+</body>
+</html>

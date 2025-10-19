@@ -1,0 +1,228 @@
+/* --- Layout generale --- */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: black;
+    font-family: sans-serif;
+    overflow: hidden;
+  }
+  
+  /* --- PLAYER --- */
+  #viewer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: black;
+    overflow: hidden;
+    z-index: 0;
+  }
+  
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* default: non taglia */
+    background-color: black;
+    transition: object-fit 0.3s ease;
+    z-index: 0;
+  }
+  
+  video.fill {
+    object-fit: cover; /* rimuove bande nere, riempie */
+  }
+  
+  /* --- CONTROLLI --- */
+  #controls {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px;
+    pointer-events: none;
+    z-index: 10; /* sopra al video e alla sidebar */
+  }
+  
+  #controls button {
+    pointer-events: all;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    font-size: 1.3em;
+    padding: 0.6em 0.8em;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  
+  #controls button:hover {
+    background: rgba(255,255,255,0.25);
+  }
+  
+  #controls button:active {
+    transform: scale(0.95);
+  }
+  
+  /* --- SIDEBAR OVERLAY --- */
+  #sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    background: rgba(10,10,10,0.96);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.6);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 5;
+  }
+  
+  #sidebar.open {
+    transform: translateX(0);
+  }
+  
+  #sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #111;
+    padding: 0.5em 0.8em;
+    border-bottom: 1px solid #333;
+  }
+  
+  #sidebar-header h3 {
+    margin: 0;
+    font-size: 1em;
+    font-weight: normal;
+  }
+  
+  #closeSidebar {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 1.3em;
+    cursor: pointer;
+  }
+  
+  #closeSidebar:hover {
+    color: white;
+  }
+  
+  /* --- TREE --- */
+  #tree {
+    padding: 0.5em;
+    font-size: 0.95em;
+  }
+  
+  .node {
+    margin-left: 0.4em;
+    margin-bottom: 0.2em;
+  }
+  
+  .dir-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  
+  .dir-toggle, .dir-play {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 1em;
+  }
+  
+  .dir-toggle:hover, .dir-play:hover {
+    color: white;
+  }
+  
+  .dirname {
+    cursor: default;
+  }
+  
+  .children {
+    margin-left: 1em;
+    display: none;
+  }
+  
+  .node.open > .children {
+    display: block;
+  }
+  
+  .filename {
+    cursor: pointer;
+    color: #ddd;
+  }
+  
+  .filename:hover {
+    color: white;
+  }
+
+  /* --- SETTINGS --- */
+#settings {
+    margin-top: auto;
+    padding: 0.8em;
+    border-top: 1px solid #333;
+    background: #141414;
+    font-size: 0.9em;
+  }
+  
+  #settings h4 {
+    margin: 0 0 0.5em 0;
+    font-weight: normal;
+    font-size: 0.9em;
+    color: #ccc;
+  }
+  
+  #settings label {
+    display: block;
+    margin-bottom: 0.5em;
+  }
+  
+  #durationContainer {
+    opacity: 0.6;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  
+  #durationContainer.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+  
+  #durationSlider {
+    width: 100%;
+  }
+
+  /* --- SIDEBAR OVERLAY --- */
+#sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    background: rgba(10,10,10,0.96);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.6);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;   /* ✅ blocco scroll orizzontale */
+    z-index: 5;
+  }
+  
+  /* Contenuti della sidebar */
+  #tree, #settings {
+    overflow-x: hidden;    /* ✅ evita barre orizzontali */
+    word-wrap: break-word; /* ✅ spezza nomi lunghi */
+  }

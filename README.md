@@ -17,8 +17,7 @@
     ```yaml
     services:
     video-kiosk:
-        build: .
-        image: video-kiosk:latest
+        image: ghcr.io/jasoc/video-kiosk:0.0.2
         container_name: video-kiosk
         restart: unless-stopped
         ports:

@@ -1,87 +1,96 @@
-VIDEO_DIR = "/vault/private/Ἀφροδίτη/vids"
-
-from flask import Flask, send_from_directory, jsonify, request
-import os, random, subprocess, json
+from flask import Flask, jsonify, send_from_directory, request
+import os
+import random
+import subprocess
+import json
+import threading
 
 app = Flask(__name__, static_folder="static", static_url_path="")
+ROOT_DIR = "/app/videos"
+dur_cache = {}
+dur_lock = threading.Lock()
+
+# ------------------ Helpers ------------------
+
+
+def list_videos(folder):
+    videos = []
+    for root, _, files in os.walk(folder):
+        for f in files:
+            if f.lower().endswith((".mp4", ".mov", ".webm", ".avi", ".mkv")):
+                videos.append(os.path.join(root, f))
+    return videos
+
 
 def get_duration(path):
+    abspath = os.path.abspath(path)
+    with dur_lock:
+        if abspath in dur_cache:
+            return dur_cache[abspath]
     try:
-        cmd = ["ffprobe", "-v", "error",
-               "-show_entries", "format=duration",
-               "-of", "json", path]
-        out = subprocess.check_output(cmd)
-        data = json.loads(out)
-        return float(data['format']['duration'])
+        out = subprocess.check_output(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "json", abspath],
+            stderr=subprocess.DEVNULL
+        ).decode()
+        dur = float(json.loads(out)["format"]["duration"])
     except Exception:
-        return 60.0
+        dur = 60.0
+    with dur_lock:
+        dur_cache[abspath] = dur
+    return dur
 
-def list_dir(base):
-    """Ritorna la struttura di directory e file ricorsiva (video + cartelle)."""
-    tree = []
-    for entry in sorted(os.listdir(base)):
-        path = os.path.join(base, entry)
-        relpath = os.path.relpath(path, VIDEO_DIR)
-        if os.path.isdir(path):
-            tree.append({
-                "type": "dir",
-                "name": entry,
-                "path": relpath,
-                "children": list_dir(path)
-            })
-        elif entry.lower().endswith((".mp4", ".mov", ".avi", ".mkv")):
-            tree.append({
-                "type": "file",
-                "name": entry,
-                "path": relpath
-            })
-    return tree
+
+def build_tree(path):
+    items = []
+    for name in sorted(os.listdir(path)):
+        fp = os.path.join(path, name)
+        if os.path.isdir(fp):
+            items.append({"type": "dir", "name": name,
+                          "path": os.path.relpath(fp, ROOT_DIR),
+                          "children": build_tree(fp)})
+        elif name.lower().endswith((".mp4", ".mov", ".webm", ".avi", ".mkv")):
+            items.append({"type": "file", "name": name,
+                          "path": os.path.relpath(fp, ROOT_DIR)})
+    return items
+# ------------------ Routes ------------------
+@app.route("/")
+def root(): return send_from_directory("static", "index.html")
+
+
+@app.route("/static/<path:p>")
+def static_files(p): return send_from_directory("static", p)
+
 
 @app.route("/tree")
-def tree():
-    return jsonify(list_dir(VIDEO_DIR))
+def tree(): return jsonify(build_tree(ROOT_DIR))
+
+
+@app.route("/video/<path:p>")
+def video(p): return send_from_directory(ROOT_DIR, p)
+
 
 @app.route("/random")
-def random_video():
-    target = request.args.get("target")  # cartella o file relativo
-    video_list = []
-
-    # Se è una cartella → prendi tutti i video ricorsivamente
-    if target:
-        full_path = os.path.join(VIDEO_DIR, target)
-        if os.path.isdir(full_path):
-            for root, _, files in os.walk(full_path):
-                for f in files:
-                    if f.lower().endswith((".mp4", ".mov", ".avi", ".mkv")):
-                        video_list.append(os.path.relpath(os.path.join(root, f), VIDEO_DIR))
-        elif os.path.isfile(full_path):
-            video_list = [target]
-
-    if not video_list:  # fallback → tutta la cartella base
-        for root, _, files in os.walk(VIDEO_DIR):
-            for f in files:
-                if f.lower().endswith((".mp4", ".mov", ".avi", ".mkv")):
-                    video_list.append(os.path.relpath(os.path.join(root, f), VIDEO_DIR))
-
-    vid = random.choice(video_list)
-    file_path = os.path.join(VIDEO_DIR, vid)
-    duration = get_duration(file_path)
-    length = random.randint(10, 25)
-    start = random.uniform(0, max(0, duration - length))
-
+def random_clip():
+    target = request.args.get("target", "")
+    base = os.path.join(ROOT_DIR, target)
+    if os.path.isdir(base):
+        vids = list_videos(base)
+        if not vids:
+            return jsonify({"error": "no videos"})
+        vf = random.choice(vids)
+    else:
+        vf = base
+    dur = get_duration(vf)
+    clip_len = random.randint(30, 40)
+    start = random.uniform(0, max(dur-clip_len, 0))
     return jsonify({
-        "file": vid,
+        "file": os.path.relpath(vf, ROOT_DIR),
         "start": round(start, 2),
-        "length": length
+        "length": clip_len,
+        "dur": round(dur, 2)
     })
 
-@app.route("/video/<path:filename>")
-def serve_video(filename):
-    return send_from_directory(VIDEO_DIR, filename)
-
-@app.route("/")
-def root():
-    return send_from_directory("static", "index.html")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=False)
+    app.run(host="0.0.0.0", port=8080, debug=True)

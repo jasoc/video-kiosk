@@ -1,43 +1,38 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Video Kiosk Minimal</title>
+  <meta charset="utf‑8" />
+  <title>Video Kiosk Pro</title>
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
 <body>
-  <!-- Barra laterale overlay -->
-  <div id="sidebar">
-    <div id="sidebar-header">
-      <h3>Libreria Video</h3>
-      <button id="closeSidebar" title="Chiudi">✕</button>
-    </div>
-    <div id="tree"></div>
+  <!-- Library Sidebar -->
+  <aside id="sidebar">
+    <header class="sb-header">
+      <h3>Library</h3>
+      <button id="closeSidebar">✕</button>
+    </header>
+    <div id="library"></div>
+  </aside>
 
-    <!-- Sezione impostazioni -->
-    <div id="settings">
-      <h4>🎛️ Impostazioni</h4>
-      <label>
-        <input type="checkbox" id="randomCheck" checked>
-        Durata casuale
-      </label>
-      <div id="durationContainer">
-        <label for="durationSlider">Durata spezzone: <span id="durValue">10</span>s</label>
-        <input type="range" min="2" max="60" value="10" id="durationSlider">
+  <!-- Viewer -->
+  <main id="viewer">
+    <video id="player" autoplay playsinline muted></video>
+    <video id="preloader" muted playsinline style="display:none;"></video>
+
+    <div id="topbar">
+      <div id="status"></div>
+      <div id="controls">
+        <button id="prevBtn">⏮ Prev</button>
+        <button id="nextBtn">Next ⏭</button>
+        <button id="randSameBtn">🎲 Rand‑Same</button>
+        <button id="loopClipBtn">🔁 Clip‑Loop</button>
+        <button id="fullBtn">▶ Full</button>
+        <button id="resetBtn">🔓 Reset</button>
+        <button id="menuBtn">☰ Menu</button>
       </div>
     </div>
-  </div>
-
-  <!-- Player principale -->
-  <div id="viewer">
-    <video id="player" autoplay playsinline></video>
-
-    <div id="controls">
-      <button id="menuBtn" title="Apri menu">☰</button>
-      <button id="zoomBtn" title="Zoom video">🔍</button>
-      <button id="nextBtn" title="Prossimo clip">⏭️</button>
-    </div>
-  </div>
+  </main>
 </body>
 </html>

@@ -4,11 +4,9 @@ let scopeType="folder", scopePath="";
 let lockMode="folderLoop";
 let clipHistory=[], historyIndex=-1;
 const videoDurations={};
-let lastStart=-1;
 
 const fmt=s=>`${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
 const setStatus=t=>document.getElementById("status").textContent=t;
-const randomBetween=(a,b)=>Math.random()*(b-a)+a;
 
 // -------------------------------------------------------------
 //  Video CONTROL CORE
@@ -18,17 +16,15 @@ async function nextClip(){
 
   if(lockMode==="clipHold" && currentClip){
     clip=currentClip;
-  } else if(scopeType==="file"){
-    const dur=videoDurations[currentVideo||scopePath]||60;
-    const len=10;
-    let start;
-    do{ start=randomBetween(0,Math.max(dur-len,0)); }
-    while(Math.abs(start-lastStart)<3);
-    lastStart=start;
-    clip={file:currentVideo||scopePath,start:start,length:len,dur:dur};
   } else {
-    clip=await (await fetch(`/random?target=${encodeURIComponent(scopePath)}`)).json();
-    videoDurations[clip.file]=clip.dur;
+    const params=new URLSearchParams();
+    if(scopePath) params.set("target",scopePath);
+    clip=await (await fetch(`/random${params.toString()?`?${params.toString()}`:""}`)).json();
+    if(clip.error){
+      setStatus(clip.error);
+      return;
+    }
+    if(typeof clip.dur==="number") videoDurations[clip.file]=clip.dur;
   }
 
   currentClip=clip;
@@ -67,7 +63,7 @@ function playClip(clip){
   player.controls = (lockMode==="full");
   updateStatus();
 
-  if(lockMode!=="full" && lockMode!=="clipHold"){
+  if(lockMode!=="full" && lockMode!=="clipHold" && clip.length>0){
     player.nextT=setTimeout(nextClip, clip.length*1000);
     preparePreload();
   }
@@ -78,7 +74,11 @@ function playClip(clip){
 // -------------------------------------------------------------
 async function preparePreload(){
   if(scopeType==="file") return;
-  const nxt=await (await fetch(`/random?target=${encodeURIComponent(scopePath)}`)).json();
+  const params=new URLSearchParams();
+  if(scopePath) params.set("target",scopePath);
+  params.set("preview","1");
+  const nxt=await (await fetch(`/random?${params.toString()}`)).json();
+  if(nxt.error) return;
   videoDurations[nxt.file]=nxt.dur;
   preloader.src=`/video/${nxt.file}`;
   preloader.dataset.src=nxt.file;
@@ -107,7 +107,12 @@ function prevClip(){
   }
 }
 function nextRandom(){ nextClip(); }
-function randSame(){ scopeType="file"; lockMode="fileLoop"; nextClip(); }
+function randSame(){
+  if(currentVideo) scopePath=currentVideo;
+  scopeType="file";
+  lockMode="fileLoop";
+  nextClip();
+}
 function holdClip(){ lockMode="clipHold"; updateStatus(); }
 function fullVideo(){
   if(!currentVideo) return;

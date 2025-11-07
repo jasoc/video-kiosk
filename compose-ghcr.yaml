@@ -4,6 +4,6 @@ services:
     container_name: video-kiosk
     restart: unless-stopped
     ports:
-      - "${PORT}:8080"
+      - ${PORT}:8080
     volumes:
       - ${VIDEO_DIR}:/app/videos

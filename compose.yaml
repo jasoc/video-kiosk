@@ -7,4 +7,5 @@ services:
     ports:
       - "${PORT}:8080"
     volumes:
+      - ./:/app
       - ${VIDEO_DIR}:/app/videos

@@ -1,25 +1,30 @@
-from collections import deque
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, Response
 import logging
 import os
-import random
 import subprocess
 import json
 import threading
 import time
+import random
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.logger.setLevel(logging.INFO)
 ROOT_DIR = "/app/videos"
+
+# Duration cache
 dur_cache = {}
 dur_lock = threading.Lock()
-rng = random.SystemRandom()
-recent_lock = threading.Lock()
-recent_videos = deque(maxlen=8)
-stats_lock = threading.Lock()
-video_stats = {}
 
-# ------------------ Helpers ------------------
+# Video cache for preloading
+video_cache = {}
+cache_lock = threading.Lock()
+currently_caching = None
+
+# Session tracking
+sessions = set()
+sessions_lock = threading.Lock()
+cache_thread = None
+cache_running = False
 
 
 def list_videos(folder):
@@ -53,7 +58,11 @@ def get_duration(path):
 
 def build_tree(path):
     items = []
-    for name in sorted(os.listdir(path)):
+    try:
+        entries = sorted(os.listdir(path))
+    except Exception:
+        return items
+    for name in entries:
         fp = os.path.join(path, name)
         if os.path.isdir(fp):
             items.append({"type": "dir", "name": name,
@@ -65,145 +74,170 @@ def build_tree(path):
     return items
 
 
-def register_video(path):
-    with stats_lock:
-        if path not in video_stats:
-            video_stats[path] = {
-                "plays": 0,
-                "last_seen": 0.0,
-                "last_start": None,
-            }
+def preload_videos():
+    """Preload all videos into memory cache."""
+    global cache_running, currently_caching
+    videos = list_videos(ROOT_DIR)
+    app.logger.info("Starting preload of %d videos", len(videos))
+    
+    for vf in videos:
+        with sessions_lock:
+            if not sessions:
+                app.logger.info("No sessions, stopping preload")
+                cache_running = False
+                currently_caching = None
+                return
+        
+        rel_path = os.path.relpath(vf, ROOT_DIR)
+        with cache_lock:
+            if rel_path in video_cache:
+                continue
+        
+        currently_caching = rel_path
+        try:
+            with open(vf, 'rb') as f:
+                data = f.read()
+            with cache_lock:
+                video_cache[rel_path] = data
+            app.logger.info("Cached: %s (%.1f MB)", rel_path, len(data) / 1024 / 1024)
+        except Exception as e:
+            app.logger.error("Failed to cache %s: %s", rel_path, e)
+    
+    currently_caching = None
+    cache_running = False
+    app.logger.info("Preload complete. Cached %d videos", len(video_cache))
 
 
-def choose_video(vids, record=True):
-    if not vids:
-        raise ValueError("video pool is empty")
-    with stats_lock:
-        for v in vids:
-            if v not in video_stats:
-                video_stats[v] = {
-                    "plays": 0,
-                    "last_seen": 0.0,
-                    "last_start": None,
-                }
-        plays_snapshot = {v: video_stats[v]["plays"] for v in vids}
-    with recent_lock:
-        recent_snapshot = set(recent_videos)
-    candidates = [v for v in vids if v not in recent_snapshot] or vids
-    min_play = min(plays_snapshot[v] for v in candidates)
-    pool = [v for v in candidates if plays_snapshot[v] == min_play]
-    choice = rng.choice(pool)
-    if record:
-        with stats_lock:
-            video_stats[choice]["plays"] += 1
-            video_stats[choice]["last_seen"] = time.time()
-        with recent_lock:
-            recent_videos.append(choice)
-    return choice
+def start_caching():
+    """Start caching thread if not running."""
+    global cache_thread, cache_running
+    if cache_running:
+        return
+    cache_running = True
+    cache_thread = threading.Thread(target=preload_videos, daemon=True)
+    cache_thread.start()
 
 
-def calc_clip_length(duration):
-    if duration <= 0.0:
-        return 0.0
-    if duration <= 20.0:
-        length = duration
-    elif duration <= 50.0:
-        length = rng.uniform(duration * 0.55, duration * 0.85)
-    elif duration <= 150.0:
-        length = rng.uniform(0.25 * duration, min(0.5 * duration, 45.0))
-    elif duration <= 420.0:
-        length = rng.uniform(22.0, min(0.3 * duration, 75.0))
-    else:
-        length = rng.uniform(28.0, min(0.25 * duration, 95.0))
-    floor = min(duration, 8.0)
-    return max(min(length, duration), floor)
+def clear_cache():
+    """Clear video cache when no sessions."""
+    global video_cache
+    with cache_lock:
+        video_cache.clear()
+    app.logger.info("Video cache cleared")
 
 
-def pick_clip_window(video_path, duration, record=True):
-    length = min(calc_clip_length(duration), duration)
-    start_max = max(duration - length, 0.0)
-    register_video(video_path)
-    with stats_lock:
-        last_start = video_stats[video_path]["last_start"]
-    if start_max <= 0.0:
-        start = 0.0
-    else:
-        separation = max(length * 0.5, min(duration * 0.15, 30.0), 6.0)
-        start = 0.0
-        for _ in range(6):
-            candidate = rng.uniform(0.0, start_max)
-            if last_start is None or abs(candidate - last_start) >= separation:
-                start = candidate
-                break
-            start = candidate
-    if record:
-        with stats_lock:
-            video_stats[video_path]["last_start"] = start
-    return start, length
+def get_cache_status():
+    """Get cache status for loading bar."""
+    videos = list_videos(ROOT_DIR)
+    total = len(videos)
+    with cache_lock:
+        cached = len(video_cache)
+        cached_list = list(video_cache.keys())
+    return {
+        "cached": cached,
+        "total": total,
+        "caching": currently_caching,
+        "videos": cached_list
+    }
+
+
 # ------------------ Routes ------------------
+
 @app.route("/")
-def root(): return send_from_directory("static", "index.html")
+def root():
+    return send_from_directory("static", "index.html")
 
 
 @app.route("/static/<path:p>")
-def static_files(p): return send_from_directory("static", p)
+def static_files(p):
+    return send_from_directory("static", p)
 
 
 @app.route("/tree")
-def tree(): return jsonify(build_tree(ROOT_DIR))
+def tree():
+    return jsonify(build_tree(ROOT_DIR))
 
 
 @app.route("/video/<path:p>")
-def video(p): return send_from_directory(ROOT_DIR, p)
+def video(p):
+    with cache_lock:
+        if p in video_cache:
+            return Response(video_cache[p], mimetype='video/mp4')
+    return send_from_directory(ROOT_DIR, p)
+
+
+@app.route("/session/start", methods=["POST"])
+def session_start():
+    """Register a session and start caching."""
+    session_id = request.json.get("id", str(time.time()))
+    with sessions_lock:
+        sessions.add(session_id)
+        count = len(sessions)
+    app.logger.info("Session started: %s (total: %d)", session_id, count)
+    start_caching()
+    return jsonify({"ok": True, "id": session_id})
+
+
+@app.route("/session/end", methods=["POST"])
+def session_end():
+    """Unregister a session and clear cache if no sessions."""
+    session_id = request.json.get("id", "")
+    with sessions_lock:
+        sessions.discard(session_id)
+        count = len(sessions)
+    app.logger.info("Session ended: %s (total: %d)", session_id, count)
+    if count == 0:
+        clear_cache()
+    return jsonify({"ok": True})
+
+
+@app.route("/cache/status")
+def cache_status():
+    """Return cache loading status."""
+    return jsonify(get_cache_status())
 
 
 @app.route("/random")
 def random_clip():
     target = request.args.get("target", "")
-    preview = request.args.get("preview", "").lower() in {"1", "true", "yes"}
-    record = not preview
+    clip_duration = float(request.args.get("duration", 20))
+    
     base = os.path.join(ROOT_DIR, target)
     if os.path.isdir(base):
         vids = list_videos(base)
         if not vids:
-            app.logger.info(
-                "random target=%s pool=0 preview=%s",
-                target or "root",
-                preview,
-            )
             return jsonify({"error": "no videos"})
-        app.logger.info(
-            "random target=%s pool=%d preview=%s",
-            target or "root",
-            len(vids),
-            preview,
-        )
-        vf = choose_video(vids, record=record)
+        vf = random.choice(vids)
     else:
         vf = base
         if not os.path.isfile(vf):
             return jsonify({"error": "video not found"}), 404
-        register_video(vf)
-        if record:
-            with stats_lock:
-                video_stats[vf]["plays"] += 1
-                video_stats[vf]["last_seen"] = time.time()
+    
     dur = get_duration(vf)
-    start, clip_len = pick_clip_window(vf, dur, record=record)
-    clip_len = min(clip_len, dur)
+    rel_path = os.path.relpath(vf, ROOT_DIR)
+    
+    # Calculate start position
+    if dur <= clip_duration:
+        start = 0
+        length = dur
+    else:
+        start = random.uniform(0, dur - clip_duration)
+        length = clip_duration
+    
+    with cache_lock:
+        is_cached = rel_path in video_cache
+    
     app.logger.info(
-        "random choice file=%s start=%.2f len=%.2f dur=%.2f preview=%s",
-        os.path.relpath(vf, ROOT_DIR),
-        start,
-        clip_len,
-        dur,
-        preview,
+        "random file=%s start=%.2f len=%.2f dur=%.2f cached=%s",
+        rel_path, start, length, dur, is_cached
     )
+    
     return jsonify({
-        "file": os.path.relpath(vf, ROOT_DIR),
+        "file": rel_path,
         "start": round(start, 2),
-        "length": round(clip_len, 2),
-        "dur": round(dur, 2)
+        "length": round(length, 2),
+        "dur": round(dur, 2),
+        "cached": is_cached
     })
 
 

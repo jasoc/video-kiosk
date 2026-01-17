@@ -9,3 +9,5 @@ services:
     volumes:
       - ./:/app
       - ${VIDEO_DIR}:/app/videos
+    environment:
+      - PORT=${PORT}

@@ -6,8 +6,8 @@
 
 ## Features
 
-- **Random clip loops**: tap the root, any folder, or a single video in the library tree to loop random clips from it (7s / 20s / 60s).
-- **Mosaic mode**: long-press a video or folder in the tree and drag it onto the canvas to build a split view (up to 6 tiles), with drag & resize handles powered by GridStack.
+- **Random clip loops**: tap the root, any folder, or a single video in the library tree to loop random clips from it. Per tile you can switch between random clips (5s–60s, in 5s steps) and whole looping videos.
+- **Mosaic mode**: long-press a video or folder in the tree and drag it onto the canvas to build a split view (up to 6 tiles), with drag & resize handles powered by GridStack. Preset layouts (columns, rows, 2×2, 3×2) and named mosaics saved in the browser's localStorage.
 - **Smooth transitions**: each tile double-buffers two `<video>` elements and prefetches the next clip, so swaps are instant crossfades.
 - **Lightweight**: the server only streams bytes with HTTP Range support — no in-memory video cache, flat memory usage.
 

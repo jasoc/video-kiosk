@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>Video Kiosk</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -16,9 +16,10 @@
   <!-- Start / idle overlay (also provides the user gesture for unmuted autoplay) -->
   <div id="start-screen">
     <div class="start-inner">
-      <span class="material-icons-round start-icon">auto_awesome_motion</span>
+      <div class="start-mark"></div>
       <h1>Video Kiosk</h1>
-      <p>Tocca per iniziare &middot; trascina un video dalla libreria per il mosaico</p>
+      <p>Tocca per iniziare</p>
+      <span class="start-sub">Tieni premuto un elemento della libreria e trascinalo per comporre un mosaico</span>
     </div>
   </div>
 
@@ -30,12 +31,11 @@
       </button>
       <span id="tb-title">Video Kiosk</span>
     </div>
-    <div class="tb-group" id="durGroup">
-      <button class="dur-btn" data-dur="7">7s</button>
-      <button class="dur-btn active" data-dur="20">20s</button>
-      <button class="dur-btn" data-dur="60">60s</button>
-    </div>
+    <div class="tb-sep"></div>
     <div class="tb-group">
+      <button id="layoutBtn" class="tb-btn" title="Layout">
+        <span class="material-icons-round">dashboard</span>
+      </button>
       <button id="pauseBtn" class="tb-btn" title="Pausa">
         <span class="material-icons-round">pause</span>
       </button>
@@ -48,15 +48,29 @@
     </div>
   </header>
 
+  <!-- Layout presets popover -->
+  <div id="layout-pop" class="pop hidden"></div>
+
   <!-- Library drawer -->
   <aside id="sidebar">
     <header class="sb-header">
-      <span class="material-icons-round">video_library</span>
-      <h3>Libreria</h3>
+      <h3>Video Kiosk</h3>
       <button id="closeSidebar" class="tb-btn"><span class="material-icons-round">close</span></button>
     </header>
+
+    <div class="sb-section-h">
+      <span>Libreria</span>
+    </div>
     <p class="sb-hint">Tocca per riprodurre &middot; tieni premuto e trascina per il mosaico</p>
     <div id="library"></div>
+
+    <div class="sb-section-h">
+      <span>Mosaici salvati</span>
+      <button id="saveMosaicBtn" class="sb-icon-btn" title="Salva il mosaico attuale">
+        <span class="material-icons-round">add</span>
+      </button>
+    </div>
+    <div id="mosaics"></div>
   </aside>
 
   <!-- Canvas -->
@@ -67,6 +81,18 @@
       <span>Rilascia qui</span>
     </div>
   </main>
+
+  <!-- Save mosaic modal -->
+  <div id="save-modal" class="modal-wrap hidden">
+    <div class="modal">
+      <h4>Salva mosaico</h4>
+      <input id="mosaicName" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Nome del mosaico" />
+      <div class="modal-actions">
+        <button id="saveCancel" class="btn ghost">Annulla</button>
+        <button id="saveConfirm" class="btn primary">Salva</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Drag ghost + toast -->
   <div id="drag-ghost" class="hidden"></div>

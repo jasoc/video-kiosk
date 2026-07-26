@@ -1,503 +1,501 @@
-let player, preloader;
-let currentClip = null, currentVideo = null;
-let scopePath = "";
+// =====================================================================
+//  Video Kiosk — tree + random clip loops + mosaic grid
+//
+//  Playback: each tile owns TWO <video> elements (double buffer), reused
+//  forever. While one plays, the next clip is prefetched on the hidden
+//  one, then swapped with a crossfade. No element is ever created per
+//  clip, so client memory stays flat.
+// =====================================================================
+
+"use strict";
+
+const MAX_TILES = 6;
+const GRID_ROWS = 12;
+const PRESS_MS = 350;          // long-press before a tree drag starts
+const DRAG_SLOP = 12;          // px of movement that cancels a press
+
+let grid;                      // GridStack instance
 let clipDuration = 20;
-let clipHistory = [], historyIndex = -1;
-let sessionId = null;
-let isFullscreen = false;
-let hideTimeout = null;
-let isPaused = false;
-let currentlyCaching = null;
-let allVideos = [];
-let clipQueue = [];
-let isPlaying = false;
+let paused = false;
+const tiles = new Map();       // gridstack item el -> Tile
 
-const MAX_VIDEO_QUEUE = 5; // Fixed queue size
+// Preset layouts (x, y, w, h) that fill the 12x12 canvas per tile count.
+const LAYOUTS = {
+  1: [[0, 0, 12, 12]],
+  2: [[0, 0, 6, 12], [6, 0, 6, 12]],
+  3: [[0, 0, 6, 6], [6, 0, 6, 6], [0, 6, 12, 6]],
+  4: [[0, 0, 6, 6], [6, 0, 6, 6], [0, 6, 6, 6], [6, 6, 6, 6]],
+  5: [[0, 0, 4, 6], [4, 0, 4, 6], [8, 0, 4, 6], [0, 6, 6, 6], [6, 6, 6, 6]],
+  6: [[0, 0, 4, 6], [4, 0, 4, 6], [8, 0, 4, 6], [0, 6, 4, 6], [4, 6, 4, 6], [8, 6, 4, 6]],
+};
 
-// -------------------------------------------------------------
-//  Session management
-// -------------------------------------------------------------
-async function startSession() {
-  sessionId = "s_" + Date.now();
-  
-  await fetch("/session/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: sessionId })
-  });
-  pollCacheStatus();
-}
+// ---------------------------------------------------------------------
+//  Tile: one video slot in the grid, looping random clips of its scope
+// ---------------------------------------------------------------------
+class Tile {
+  constructor(contentEl, scope, label) {
+    this.scope = scope;        // "" = root, folder path, or file path
+    this.label = label;
+    this.gen = 0;              // bumped to cancel stale async work
+    this.timer = null;
+    this.clip = null;
+    this.next = null;          // { clip, el } prefetched and ready
+    this.active = 0;
+    this.root = contentEl;
 
-async function endSession() {
-  if (sessionId) {
-    await fetch("/session/end", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: sessionId })
+    this.videos = [this.makeVideo(), this.makeVideo()];
+    this.spinner = document.createElement("div");
+    this.spinner.className = "tile-spinner";
+    this.spinner.innerHTML = '<span class="material-icons-round">hourglass_top</span>';
+
+    this.overlay = document.createElement("div");
+    this.overlay.className = "tile-overlay";
+    this.chip = document.createElement("span");
+    this.chip.className = "tile-chip";
+    this.chip.textContent = label;
+    const skip = tileBtn("skip_next", () => this.advance());
+    const close = tileBtn("close", () => removeTile(this.root.parentElement));
+    this.overlay.append(this.chip, skip, close);
+
+    this.root.append(this.videos[0], this.videos[1], this.spinner, this.overlay);
+
+    this.overlayT = null;
+    this.root.addEventListener("click", () => this.showOverlay());
+    this.advance();
+  }
+
+  makeVideo() {
+    const v = document.createElement("video");
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "auto";
+    v.addEventListener("ended", () => {
+      if (!paused && v === this.videos[this.active]) this.advance();
+    });
+    return v;
+  }
+
+  showOverlay() {
+    this.overlay.classList.add("visible");
+    clearTimeout(this.overlayT);
+    this.overlayT = setTimeout(() => this.overlay.classList.remove("visible"), 2500);
+  }
+
+  async fetchClip() {
+    const params = new URLSearchParams({ duration: clipDuration });
+    if (this.scope) params.set("target", this.scope);
+    const res = await fetch(`/random?${params}`);
+    if (!res.ok) throw new Error("no clips");
+    return res.json();
+  }
+
+  // Load clip into el and resolve when it can play from clip.start.
+  prepare(el, clip) {
+    return new Promise((resolve, reject) => {
+      const gen = this.gen;
+      clearTimeout(el._failT);           // cancel a previous load's watchdog
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(el._failT);
+        el.oncanplay = el.onloadedmetadata = el.onerror = null;
+        ok && gen === this.gen ? resolve() : reject(new Error("stale"));
+      };
+      el._failT = setTimeout(() => done(false), 10000);
+      el.onerror = () => done(false);
+      el.onloadedmetadata = () => {
+        try { el.currentTime = clip.start; } catch (e) { /* seek on play */ }
+        el.oncanplay = () => done(true);
+      };
+      el.src = `/video/${encodeURI(clip.file)}`;
+      el.load();
     });
   }
-}
 
-// -------------------------------------------------------------
-//  Cache status polling
-// -------------------------------------------------------------
-let cacheInterval = null;
+  // Show the next clip: use the prefetched one if ready, otherwise load.
+  async advance() {
+    const gen = ++this.gen;
+    clearTimeout(this.timer);
+    let clip, el;
 
-function pollCacheStatus() {
-  if (cacheInterval) return;
-  updateCacheBar();
-  cacheInterval = setInterval(updateCacheBar, 2000);
-}
-
-async function updateCacheBar() {
-  try {
-    const res = await fetch("/cache/status");
-    const data = await res.json();
-    const pct = data.total > 0 ? (data.cached / data.total) * 100 : 0;
-    const bar = document.getElementById("cache-progress");
-    if (bar) {
-      bar.style.width = pct + "%";
-      if (pct >= 100) {
-        bar.parentElement.classList.add("complete");
-      } else {
-        bar.parentElement.classList.remove("complete");
+    if (this.next) {
+      ({ clip, el } = this.next);
+      this.next = null;
+    } else {
+      this.spinner.classList.add("visible");
+      while (true) {
+        try {
+          clip = await this.fetchClip();
+          el = this.videos[1 - this.active];
+          await this.prepare(el, clip);
+          break;
+        } catch (e) {
+          if (gen !== this.gen) return;
+          if (e.message === "stale") return;
+          await new Promise(r => setTimeout(r, 2000));
+          if (gen !== this.gen) return;
+        }
       }
     }
-    currentlyCaching = data.caching || null;
-    allVideos = data.videos || [];
-    updatePlaylistPopup();
-  } catch (e) {}
-}
+    if (gen !== this.gen) return;
+    this.spinner.classList.remove("visible");
 
-// -------------------------------------------------------------
-//  Video CONTROL CORE
-// -------------------------------------------------------------
-async function fetchClip() {
-  const params = new URLSearchParams();
-  if (scopePath) params.set("target", scopePath);
-  params.set("duration", clipDuration);
-  
-  const clip = await (await fetch(`/random?${params.toString()}`)).json();
-  if (clip.error) return null;
-  return clip;
-}
+    const old = this.videos[this.active];
+    this.active = this.videos.indexOf(el);
+    this.clip = clip;
+    el.classList.add("front");
+    old.classList.remove("front");
+    old.pause();
 
-async function fillQueue() {
-  while (clipQueue.length < MAX_VIDEO_QUEUE) {
-    const clip = await fetchClip();
-    if (!clip) break;
-    clipQueue.push(clip);
-    // Preload video in background
-    const preloadEl = document.createElement("video");
-    preloadEl.src = `/video/${clip.file}`;
-    preloadEl.preload = "auto";
-    preloadEl.load();
-  }
-  updatePlaylistPopup();
-}
-
-function updateCurrentFolder() {
-  const el = document.getElementById("folder-text");
-  if (el) {
-    el.textContent = scopePath ? scopePath : "/ root";
-  }
-}
-
-function updateNowPlaying() {
-  const el = document.getElementById("now-playing-text");
-  if (el && currentVideo) {
-    el.textContent = currentVideo.split("/").pop();
-  } else if (el) {
-    el.textContent = "Nothing playing";
-  }
-}
-
-async function nextClip() {
-  let clip;
-  
-  // Try to get from queue first
-  if (clipQueue.length > 0) {
-    clip = clipQueue.shift();
-  } else {
-    clip = await fetchClip();
-  }
-  
-  if (!clip) {
-    console.error("No clips available");
-    return;
+    el.muted = tiles.size > 1;      // audio only in single view
+    if (!paused) {
+      el.play().catch(() => {});
+      this.armTimer();
+    }
+    this.chip.textContent = clip.file.split("/").pop();
+    this.prefetch();
   }
 
-  currentClip = clip;
-  currentVideo = clip.file;
-  clipHistory.splice(historyIndex + 1);
-  clipHistory.push(clip);
-  historyIndex = clipHistory.length - 1;
-  
-  updateCurrentFolder();
-  updateNowPlaying();
-  playClip(clip);
-  
-  // Refill queue in background
-  fillQueue();
-}
-
-// -------------------------------------------------------------
-//  Playback logic
-// -------------------------------------------------------------
-function playClip(clip, fullMode = false) {
-  clearTimeout(player.nextT);
-  const sameFile = player.dataset.src === clip.file;
-
-  if (!sameFile) {
-    player.src = `/video/${clip.file}`;
-    player.dataset.src = clip.file;
+  armTimer() {
+    clearTimeout(this.timer);
+    const v = this.videos[this.active];
+    if (!this.clip) return;
+    const remaining = (this.clip.start + this.clip.length) - v.currentTime;
+    this.timer = setTimeout(() => this.advance(), Math.max(0.3, remaining) * 1000);
   }
 
-  const seekNow = () => {
-    try { player.currentTime = clip.start; } catch (e) {}
-    player.muted = false;
-    player.play().catch(() => {});
-  };
-
-  if (player.readyState < 1) {
-    player.addEventListener("loadedmetadata", seekNow, { once: true });
-    player.load();
-  } else {
-    seekNow();
+  async prefetch() {
+    const gen = this.gen;
+    try {
+      const clip = await this.fetchClip();
+      const el = this.videos[1 - this.active];
+      await this.prepare(el, clip);
+      if (gen === this.gen) this.next = { clip, el };
+    } catch (e) { /* advance() will load on demand */ }
   }
 
-  player.controls = fullMode;
+  setPaused(p) {
+    const v = this.videos[this.active];
+    if (p) {
+      clearTimeout(this.timer);
+      v.pause();
+    } else {
+      v.play().catch(() => {});
+      this.armTimer();
+    }
+  }
 
-  if (!fullMode && clip.length > 0) {
-    player.nextT = setTimeout(nextClip, clip.length * 1000);
+  destroy() {
+    this.gen++;
+    clearTimeout(this.timer);
+    clearTimeout(this.overlayT);
+    for (const v of this.videos) {
+      v.pause();
+      v.removeAttribute("src");
+      v.load();                 // release decoder + buffers
+    }
+    this.root.replaceChildren();
   }
 }
 
-// -------------------------------------------------------------
-//  Controls
-// -------------------------------------------------------------
-function prevClip() {
-  if (historyIndex > 0) {
-    historyIndex--;
-    const clip = clipHistory[historyIndex];
-    currentClip = clip;
-    updateNowPlaying();
-    playClip(clip);
+function tileBtn(icon, onTap) {
+  const b = document.createElement("button");
+  b.className = "tile-btn";
+  b.innerHTML = `<span class="material-icons-round">${icon}</span>`;
+  // Don't let gridstack treat button presses as a drag start.
+  for (const ev of ["pointerdown", "mousedown", "touchstart"])
+    b.addEventListener(ev, e => e.stopPropagation());
+  b.addEventListener("click", e => { e.stopPropagation(); onTap(); });
+  return b;
+}
+
+// ---------------------------------------------------------------------
+//  Grid management
+// ---------------------------------------------------------------------
+function cellHeight() {
+  return document.getElementById("canvas").clientHeight / GRID_ROWS;
+}
+
+function initGrid() {
+  grid = GridStack.init({
+    column: 12,
+    maxRow: GRID_ROWS,
+    cellHeight: cellHeight(),
+    margin: 3,
+    float: false,
+    animate: true,
+    resizable: { handles: "se" },
+  }, "#grid");
+  window.addEventListener("resize", () => grid.cellHeight(cellHeight()));
+}
+
+function applyLayout() {
+  const items = grid.getGridItems();
+  const layout = LAYOUTS[items.length];
+  if (!layout) return;
+  grid.batchUpdate();
+  items.forEach((el, i) => {
+    const [x, y, w, h] = layout[i];
+    grid.update(el, { x, y, w, h });
+  });
+  grid.batchUpdate(false);
+}
+
+function updateAudio() {
+  const single = tiles.size === 1;
+  for (const t of tiles.values())
+    t.videos[t.active].muted = !single;
+}
+
+function addTile(scope, label) {
+  if (tiles.size >= MAX_TILES) {
+    toast(`Massimo ${MAX_TILES} video nel mosaico`);
+    return null;
   }
+  hideStart();
+  // Shrink existing tiles to the (n+1)-tile layout first so the new
+  // widget's slot is guaranteed to be free (maxRow forbids overflow).
+  const layout = LAYOUTS[tiles.size + 1];
+  const items = grid.getGridItems();
+  grid.batchUpdate();
+  items.forEach((itemEl, i) => {
+    const [x, y, w, h] = layout[i];
+    grid.update(itemEl, { x, y, w, h });
+  });
+  grid.batchUpdate(false);
+  const [x, y, w, h] = layout[items.length];
+  const el = grid.addWidget({ x, y, w, h });
+  const tile = new Tile(el.querySelector(".grid-stack-item-content"), scope, label);
+  tiles.set(el, tile);
+  updateAudio();
+  return tile;
 }
 
-function fullVideo() {
-  if (!currentVideo) return;
-  clearTimeout(player.nextT);
-  currentClip = { file: currentVideo, start: 0, length: 9999 };
-  playClip(currentClip, true);
+function removeTile(el) {
+  const tile = tiles.get(el);
+  if (tile) tile.destroy();
+  tiles.delete(el);
+  grid.removeWidget(el);
+  applyLayout();
+  updateAudio();
+  if (tiles.size === 0) showStart();
 }
 
-function fullReset() {
-  scopePath = "";
-  clipQueue = [];
-  updateCurrentFolder();
-  nextClip();
+function clearTiles() {
+  for (const [el, tile] of tiles) {
+    tile.destroy();
+    grid.removeWidget(el);
+  }
+  tiles.clear();
+}
+
+// Tap on a tree item: single full-canvas loop of that scope.
+function playScope(scope, label) {
+  clearTiles();
+  paused = false;
+  updatePauseBtn();
+  addTile(scope, label);
+  document.getElementById("sidebar").classList.remove("open");
+}
+
+// ---------------------------------------------------------------------
+//  Global controls
+// ---------------------------------------------------------------------
+function nextAll() {
+  for (const t of tiles.values()) t.advance();
+}
+
+function updatePauseBtn() {
+  document.querySelector("#pauseBtn .material-icons-round").textContent =
+    paused ? "play_arrow" : "pause";
+}
+
+function togglePause() {
+  paused = !paused;
+  updatePauseBtn();
+  for (const t of tiles.values()) t.setPaused(paused);
 }
 
 function setClipDuration(dur) {
   clipDuration = dur;
-  document.querySelectorAll(".dur-btn").forEach(btn => {
-    btn.classList.toggle("active", parseInt(btn.dataset.dur) === dur);
-  });
-  // Clear and refill queue with new duration
-  clipQueue = [];
-  fillQueue();
+  document.querySelectorAll(".dur-btn").forEach(b =>
+    b.classList.toggle("active", +b.dataset.dur === dur));
+  // Drop prefetched clips so the new duration applies from the next skip.
+  for (const t of tiles.values()) t.next = null;
 }
 
-// -------------------------------------------------------------
-//  Fullscreen mode
-// -------------------------------------------------------------
 function toggleFullscreen() {
-  const viewer = document.getElementById("viewer");
-  const btn = document.getElementById("fullscreenBtn");
-  const icon = btn.querySelector(".material-icons");
-  
-  if (!isFullscreen) {
-    if (viewer.requestFullscreen) {
-      viewer.requestFullscreen();
-    } else if (viewer.webkitRequestFullscreen) {
-      viewer.webkitRequestFullscreen();
-    }
-    isFullscreen = true;
-    document.body.classList.add("fullscreen-mode");
-    icon.textContent = "fullscreen_exit";
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen?.();
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
-    isFullscreen = false;
-    document.body.classList.remove("fullscreen-mode");
-    icon.textContent = "fullscreen";
+    document.exitFullscreen?.();
   }
 }
 
-function startAutoHide() {
-  showTopbar();
-  document.addEventListener("mousemove", showTopbar);
-  document.addEventListener("touchstart", showTopbar);
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.add("hidden"), 2200);
 }
 
-function showTopbar() {
-  const topbar = document.getElementById("topbar");
-  topbar.classList.remove("hidden");
-  clearTimeout(hideTimeout);
-  hideTimeout = setTimeout(() => {
-    topbar.classList.add("hidden");
-  }, 3000);
-}
+function showStart() { document.getElementById("start-screen").classList.remove("hidden"); }
+function hideStart() { document.getElementById("start-screen").classList.add("hidden"); }
 
-// Handle fullscreen exit via Escape key
-document.addEventListener("fullscreenchange", () => {
-  if (!document.fullscreenElement && isFullscreen) {
-    isFullscreen = false;
-    document.body.classList.remove("fullscreen-mode");
-    const icon = document.querySelector("#fullscreenBtn .material-icons");
-    if (icon) icon.textContent = "fullscreen";
-  }
-});
-
-// -------------------------------------------------------------
-//  Pause / Resume
-// -------------------------------------------------------------
-function togglePause() {
-  const btn = document.getElementById("pauseBtn");
-  const icon = btn.querySelector(".material-icons");
-  
-  if (isPaused) {
-    player.play();
-    isPaused = false;
-    icon.textContent = "pause";
-    btn.title = "Pause";
-    // Resume timer if not in full mode
-    if (currentClip && currentClip.length < 9999) {
-      const remaining = (currentClip.start + currentClip.length) - player.currentTime;
-      if (remaining > 0) {
-        player.nextT = setTimeout(nextClip, remaining * 1000);
-      }
-    }
-  } else {
-    player.pause();
-    isPaused = true;
-    icon.textContent = "play_arrow";
-    btn.title = "Resume";
-    clearTimeout(player.nextT);
-  }
-}
-
-// -------------------------------------------------------------
-//  Playlist Popup
-// -------------------------------------------------------------
-function togglePlaylistPopup() {
-  const popup = document.getElementById("playlist-popup");
-  popup.classList.toggle("hidden");
-  if (!popup.classList.contains("hidden")) {
-    updatePlaylistPopup();
-  }
-}
-
-function updatePlaylistPopup() {
-  const cachingEl = document.getElementById("playlist-caching");
-  const listEl = document.getElementById("playlist-list");
-  
-  if (!cachingEl || !listEl) return;
-  
-  if (currentlyCaching) {
-    cachingEl.innerHTML = `<span class="material-icons" style="font-size:16px">downloading</span> Caching: ${currentlyCaching.split("/").pop()}`;
-  } else {
-    cachingEl.innerHTML = `<span class="material-icons" style="font-size:16px">check_circle</span> All videos cached`;
-  }
-  
-  listEl.innerHTML = "";
-  
-  // Show history (past clips)
-  clipHistory.forEach((clip, i) => {
-    const item = document.createElement("div");
-    item.className = "playlist-item";
-    if (i === historyIndex) {
-      item.classList.add("current");
-    } else if (i < historyIndex) {
-      item.classList.add("played");
-    }
-    item.innerHTML = `<span class="material-icons" style="font-size:16px">${i === historyIndex ? 'play_arrow' : 'history'}</span> ${clip.file.split("/").pop()}`;
-    item.onclick = () => {
-      historyIndex = i;
-      currentClip = clipHistory[i];
-      updateNowPlaying();
-      playClip(currentClip);
-    };
-    listEl.appendChild(item);
-  });
-  
-  // Show upcoming clips in queue
-  if (clipQueue.length > 0) {
-    const separator = document.createElement("div");
-    separator.className = "playlist-separator";
-    separator.textContent = `Up next (${clipQueue.length} preloaded)`;
-    listEl.appendChild(separator);
-    
-    clipQueue.forEach((clip) => {
-      const item = document.createElement("div");
-      item.className = "playlist-item upcoming";
-      item.innerHTML = `<span class="material-icons" style="font-size:16px">schedule</span> ${clip.file.split("/").pop()}`;
-      listEl.appendChild(item);
-    });
-  }
-  
-  // Scroll to current
-  const currentEl = listEl.querySelector(".current");
-  if (currentEl) {
-    currentEl.scrollIntoView({ block: "center" });
-  }
-}
-
-// -------------------------------------------------------------
-//  Library / folder tree rendering
-// -------------------------------------------------------------
+// ---------------------------------------------------------------------
+//  Library tree
+// ---------------------------------------------------------------------
 async function loadTree() {
   const data = await (await fetch("/tree")).json();
-  const root = document.getElementById("library");
-  root.innerHTML = "";
-  renderNodes(data, root);
+  const lib = document.getElementById("library");
+  lib.replaceChildren();
+  lib.append(treeRow("home", "Tutti i video", "", true));
+  renderNodes(data, lib, 0);
 }
 
-function renderNodes(list, parent) {
-  list.forEach(n => {
-    const node = document.createElement("div");
-    node.className = "node " + n.type;
-
+function renderNodes(nodes, parent, depth) {
+  for (const n of nodes) {
     if (n.type === "dir") {
-      const h = document.createElement("div");
-      h.className = "dir-header";
-      
-      const expandBtn = document.createElement("button");
-      expandBtn.className = "expand-btn";
-      expandBtn.innerHTML = '<span class="material-icons">chevron_right</span>';
-      
-      const folderIcon = document.createElement("span");
-      folderIcon.className = "material-icons folder-icon";
-      folderIcon.textContent = "folder";
-      
-      const name = document.createElement("span");
-      name.className = "name";
-      name.textContent = n.name;
-      
-      const playBtn = document.createElement("button");
-      playBtn.className = "play-btn";
-      playBtn.innerHTML = '<span class="material-icons">play_arrow</span>';
-      
-      h.onclick = () => {
-        node.classList.toggle("open");
-        folderIcon.textContent = node.classList.contains("open") ? "folder_open" : "folder";
-      };
-      
-      playBtn.onclick = e => {
-        e.stopPropagation();
-        scopePath = n.path;
-        clipQueue = [];
-        updateCurrentFolder();
-        hideStartScreen();
-        nextClip();
-      };
-      
-      h.append(expandBtn, folderIcon, name, playBtn);
-      node.append(h);
-      
+      const row = treeRow("folder", n.name, n.path);
+      row.style.paddingLeft = `${12 + depth * 16}px`;
+
+      const caret = document.createElement("button");
+      caret.className = "caret";
+      caret.innerHTML = '<span class="material-icons-round">chevron_right</span>';
+      row.prepend(caret);
+
       const kids = document.createElement("div");
       kids.className = "children";
-      renderNodes(n.children, kids);
-      node.append(kids);
+      renderNodes(n.children, kids, depth + 1);
+
+      caret.addEventListener("click", e => {
+        e.stopPropagation();
+        const open = kids.classList.toggle("open");
+        caret.classList.toggle("open", open);
+      });
+      for (const ev of ["pointerdown", "touchstart"])
+        caret.addEventListener(ev, e => e.stopPropagation());
+
+      parent.append(row, kids);
     } else {
-      const f = document.createElement("div");
-      f.className = "filename";
-      f.innerHTML = `<span class="material-icons">movie</span> ${n.name}`;
-      f.onclick = () => {
-        scopePath = n.path;
-        currentVideo = n.path;
-        clipQueue = [];
-        updateCurrentFolder();
-        hideStartScreen();
-        nextClip();
-      };
-      node.append(f);
+      const row = treeRow("movie", n.name, n.path);
+      row.style.paddingLeft = `${12 + depth * 16 + 26}px`;
+      parent.append(row);
     }
-    parent.append(node);
-  });
-}
-
-// -------------------------------------------------------------
-//  Start Screen
-// -------------------------------------------------------------
-function hideStartScreen() {
-  const startScreen = document.getElementById("start-screen");
-  if (startScreen) {
-    startScreen.classList.add("hidden");
   }
-  isPlaying = true;
 }
 
-function startPlayback() {
-  scopePath = "";
-  clipQueue = [];
-  updateCurrentFolder();
-  hideStartScreen();
-  document.getElementById("sidebar").classList.remove("open");
-  nextClip();
+function treeRow(icon, label, scope, isRoot = false) {
+  const row = document.createElement("div");
+  row.className = "tree-row" + (isRoot ? " root" : "");
+  row.innerHTML =
+    `<span class="material-icons-round">${icon}</span><span class="row-name">${label}</span>`;
+  row.addEventListener("click", () => {
+    if (row._dragged) { row._dragged = false; return; }
+    playScope(scope, isRoot ? "Tutti i video" : label);
+  });
+  makeDraggable(row, scope, label);
+  return row;
 }
 
-// -------------------------------------------------------------
-//  INIT
-// -------------------------------------------------------------
-window.onload = () => {
-  player = document.getElementById("player");
-  preloader = document.getElementById("preloader");
-  preloader.style.display = "none";
+// ---------------------------------------------------------------------
+//  Long-press drag from the tree into the canvas (pointer events)
+// ---------------------------------------------------------------------
+function makeDraggable(row, scope, label) {
+  let pressT = null, dragging = false, startX = 0, startY = 0;
+  const ghost = document.getElementById("drag-ghost");
+  const hint = document.getElementById("drop-hint");
 
-  // Start button
-  document.getElementById("startBtn").onclick = startPlayback;
+  // While an actual drag is running, block native touch scrolling.
+  row.addEventListener("touchmove", e => { if (dragging) e.preventDefault(); },
+    { passive: false });
 
-  // Control buttons
-  document.getElementById("prevBtn").onclick = prevClip;
-  document.getElementById("pauseBtn").onclick = togglePause;
-  document.getElementById("nextBtn").onclick = nextClip;
-  document.getElementById("fullBtn").onclick = fullVideo;
-  document.getElementById("resetBtn").onclick = fullReset;
-  document.getElementById("fullscreenBtn").onclick = toggleFullscreen;
-
-  // Duration buttons
-  document.querySelectorAll(".dur-btn").forEach(btn => {
-    btn.onclick = () => setClipDuration(parseInt(btn.dataset.dur));
+  row.addEventListener("pointerdown", e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    startX = e.clientX; startY = e.clientY;
+    pressT = setTimeout(() => {
+      dragging = true;
+      row._dragged = true;
+      row.classList.add("dragging");
+      try { row.setPointerCapture(e.pointerId); } catch (err) {}
+      ghost.textContent = label;
+      ghost.classList.remove("hidden");
+      moveGhost(e.clientX, e.clientY);
+      hint.classList.add("visible");
+      navigator.vibrate?.(30);
+    }, PRESS_MS);
   });
 
-  // Sidebar
-  const sb = document.getElementById("sidebar");
-  document.getElementById("menuBtn").onclick = () => sb.classList.toggle("open");
-  document.getElementById("closeSidebar").onclick = () => sb.classList.remove("open");
-  
-  // Play root button in sidebar
-  document.getElementById("playRootBtn").onclick = startPlayback;
+  row.addEventListener("pointermove", e => {
+    if (dragging) {
+      moveGhost(e.clientX, e.clientY);
+      hint.classList.toggle("armed", !overSidebar(e.clientX));
+    } else if (pressT &&
+        Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_SLOP) {
+      clearTimeout(pressT); pressT = null;   // it's a scroll / swipe
+    }
+  });
 
-  // Cache bar / playlist popup
-  document.getElementById("cache-bar").onclick = togglePlaylistPopup;
-  document.getElementById("closePlaylist").onclick = () => {
-    document.getElementById("playlist-popup").classList.add("hidden");
+  const finish = e => {
+    clearTimeout(pressT); pressT = null;
+    if (!dragging) return;
+    dragging = false;
+    row.classList.remove("dragging");
+    ghost.classList.add("hidden");
+    hint.classList.remove("visible", "armed");
+    if (e.type === "pointerup" && !overSidebar(e.clientX)) {
+      addTile(scope, label);
+    }
+    // keep _dragged=true so the trailing click doesn't also play
+    setTimeout(() => { row._dragged = false; }, 300);
   };
+  row.addEventListener("pointerup", finish);
+  row.addEventListener("pointercancel", finish);
 
-  // Start auto-hide for topbar
-  startAutoHide();
+  function moveGhost(x, y) {
+    ghost.style.transform = `translate(${x + 14}px, ${y - 20}px)`;
+  }
+  function overSidebar(x) {
+    const sb = document.getElementById("sidebar");
+    return sb.classList.contains("open") && x < sb.getBoundingClientRect().right;
+  }
+}
 
-  // Start session and load tree, but don't auto-play
-  startSession();
+// ---------------------------------------------------------------------
+//  Topbar auto-hide
+// ---------------------------------------------------------------------
+let hideT = null;
+function pokeTopbar() {
+  document.getElementById("topbar").classList.remove("hidden");
+  clearTimeout(hideT);
+  hideT = setTimeout(() => {
+    if (!document.getElementById("sidebar").classList.contains("open"))
+      document.getElementById("topbar").classList.add("hidden");
+  }, 3500);
+}
+
+// ---------------------------------------------------------------------
+//  Init
+// ---------------------------------------------------------------------
+window.addEventListener("load", () => {
+  initGrid();
   loadTree();
-};
 
-window.onbeforeunload = () => {
-  endSession();
-};
+  document.getElementById("start-screen").addEventListener("click", () =>
+    playScope("", "Tutti i video"));
+  document.getElementById("menuBtn").addEventListener("click", () =>
+    document.getElementById("sidebar").classList.toggle("open"));
+  document.getElementById("closeSidebar").addEventListener("click", () =>
+    document.getElementById("sidebar").classList.remove("open"));
+  document.getElementById("pauseBtn").addEventListener("click", togglePause);
+  document.getElementById("nextBtn").addEventListener("click", nextAll);
+  document.getElementById("fullscreenBtn").addEventListener("click", toggleFullscreen);
+  document.querySelectorAll(".dur-btn").forEach(b =>
+    b.addEventListener("click", () => setClipDuration(+b.dataset.dur)));
+
+  document.addEventListener("pointermove", pokeTopbar);
+  document.addEventListener("pointerdown", pokeTopbar);
+  pokeTopbar();
+});

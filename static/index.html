@@ -2,98 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>Video Kiosk</title>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.min.js"></script>
   <script src="script.js" defer></script>
 </head>
 <body>
-  <!-- Start Screen -->
+
+  <!-- Start / idle overlay (also provides the user gesture for unmuted autoplay) -->
   <div id="start-screen">
-    <div id="start-content">
-      <span class="material-icons start-icon">play_circle</span>
+    <div class="start-inner">
+      <span class="material-icons-round start-icon">auto_awesome_motion</span>
       <h1>Video Kiosk</h1>
-      <button id="startBtn">
-        <span class="material-icons">play_arrow</span>
-        Start Playback
-      </button>
+      <p>Tocca per iniziare &middot; trascina un video dalla libreria per il mosaico</p>
     </div>
   </div>
 
-  <!-- Library Sidebar -->
+  <!-- Top bar -->
+  <header id="topbar">
+    <div class="tb-group">
+      <button id="menuBtn" class="tb-btn" title="Libreria">
+        <span class="material-icons-round">menu</span>
+      </button>
+      <span id="tb-title">Video Kiosk</span>
+    </div>
+    <div class="tb-group" id="durGroup">
+      <button class="dur-btn" data-dur="7">7s</button>
+      <button class="dur-btn active" data-dur="20">20s</button>
+      <button class="dur-btn" data-dur="60">60s</button>
+    </div>
+    <div class="tb-group">
+      <button id="pauseBtn" class="tb-btn" title="Pausa">
+        <span class="material-icons-round">pause</span>
+      </button>
+      <button id="nextBtn" class="tb-btn" title="Prossima clip">
+        <span class="material-icons-round">skip_next</span>
+      </button>
+      <button id="fullscreenBtn" class="tb-btn" title="Schermo intero">
+        <span class="material-icons-round">fullscreen</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Library drawer -->
   <aside id="sidebar">
     <header class="sb-header">
-      <span class="material-icons">video_library</span>
-      <h3>Library</h3>
-      <button id="closeSidebar"><span class="material-icons">close</span></button>
+      <span class="material-icons-round">video_library</span>
+      <h3>Libreria</h3>
+      <button id="closeSidebar" class="tb-btn"><span class="material-icons-round">close</span></button>
     </header>
-    <button id="playRootBtn">
-      <span class="material-icons">playlist_play</span>
-      Play All Videos
-    </button>
-    <div id="now-playing">
-      <span class="material-icons">music_note</span>
-      <span id="now-playing-text">Nothing playing</span>
-    </div>
+    <p class="sb-hint">Tocca per riprodurre &middot; tieni premuto e trascina per il mosaico</p>
     <div id="library"></div>
   </aside>
 
-  <!-- Playlist Popup -->
-  <div id="playlist-popup" class="hidden">
-    <div id="playlist-header">
-      <span class="material-icons">queue_music</span>
-      <span>Playlist</span>
-      <button id="closePlaylist"><span class="material-icons">close</span></button>
-    </div>
-    <div id="playlist-caching"></div>
-    <div id="playlist-list"></div>
-  </div>
-
-  <!-- Viewer -->
-  <main id="viewer">
-    <video id="player" autoplay playsinline muted></video>
-    <video id="preloader" muted playsinline style="display:none;"></video>
-
-    <div id="topbar">
-      <div id="topbar-left">
-        <div id="cache-bar" title="Click to view playlist">
-          <div id="cache-progress"></div>
-        </div>
-        <div id="current-folder">
-          <span class="material-icons">folder</span>
-          <span id="folder-text">/ root</span>
-        </div>
-        <div id="duration-btns">
-          <button class="dur-btn" data-dur="7">7s</button>
-          <button class="dur-btn active" data-dur="20">20s</button>
-          <button class="dur-btn" data-dur="60">60s</button>
-        </div>
-      </div>
-      <div id="controls">
-        <button id="prevBtn" title="Previous clip">
-          <span class="material-icons">skip_previous</span>
-        </button>
-        <button id="pauseBtn" title="Pause">
-          <span class="material-icons">pause</span>
-        </button>
-        <button id="nextBtn" title="Next clip">
-          <span class="material-icons">skip_next</span>
-        </button>
-        <button id="fullBtn" title="Play full video">
-          <span class="material-icons">smart_display</span>
-        </button>
-        <button id="resetBtn" title="Reset to root folder">
-          <span class="material-icons">restart_alt</span>
-        </button>
-        <button id="fullscreenBtn" title="Fullscreen">
-          <span class="material-icons">fullscreen</span>
-        </button>
-        <button id="menuBtn" title="Open library">
-          <span class="material-icons">menu</span>
-        </button>
-      </div>
+  <!-- Canvas -->
+  <main id="canvas">
+    <div class="grid-stack" id="grid"></div>
+    <div id="drop-hint">
+      <span class="material-icons-round">add_to_queue</span>
+      <span>Rilascia qui</span>
     </div>
   </main>
+
+  <!-- Drag ghost + toast -->
+  <div id="drag-ghost" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+
 </body>
 </html>

@@ -6,10 +6,10 @@
 
 ## Features
 
-- **Simple Setup**: Easy to configure and deploy.
-- **Customizable**: Supports various video formats and playback options.
-- **Lightweight**: Minimal resource usage for smooth performance.
-- **Looping Playback**: Automatically restarts videos for continuous display.
+- **Random clip loops**: tap the root, any folder, or a single video in the library tree to loop random clips from it (7s / 20s / 60s).
+- **Mosaic mode**: long-press a video or folder in the tree and drag it onto the canvas to build a split view (up to 6 tiles), with drag & resize handles powered by GridStack.
+- **Smooth transitions**: each tile double-buffers two `<video>` elements and prefetches the next clip, so swaps are instant crossfades.
+- **Lightweight**: the server only streams bytes with HTTP Range support — no in-memory video cache, flat memory usage.
 
 ## Installation
 

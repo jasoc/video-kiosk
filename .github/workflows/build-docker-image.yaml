@@ -1,5 +1,7 @@
 name: Build and Push Containers
 
+run-name: "Building and pushing Docker image version ${{ github.event.inputs.version }} (latest: ${{ github.event.inputs.latest }})"
+
 on:
   workflow_dispatch:
     inputs:

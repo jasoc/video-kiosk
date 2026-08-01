@@ -9,5 +9,10 @@ services:
     volumes:
       - ./:/app
       - ${VIDEO_DIR}:/app/videos
+      - proxies:/app/proxies
     environment:
       - PORT=${PORT}
+
+volumes:
+  # low-res proxies built on demand; safe to delete, they get rebuilt
+  proxies:

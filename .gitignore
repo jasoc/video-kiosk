@@ -3,6 +3,10 @@ lib
 lib64
 include
 pyenv.cfg
+__pycache__/
+
+# transcoded low-res proxies (dev bind-mounts the repo into /app)
+proxies/
 # Logs
 logs
 *.log

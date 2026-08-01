@@ -254,6 +254,7 @@ button {
   transition: background 0.12s, color 0.12s;
 }
 .sb-icon-btn:hover, .sb-icon-btn:active { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.sb-icon-btn.active { background: var(--accent-dim); color: var(--accent); }
 .sb-icon-btn .material-icons-round { font-size: 17px; }
 
 #library {
@@ -286,6 +287,12 @@ button {
 .tree-row:hover, .tree-row:active,
 .mosaic-row:hover, .mosaic-row:active { background: rgba(255, 255, 255, 0.055); }
 .tree-row.dragging { background: var(--accent-dim); opacity: 0.75; }
+/* folder highlighted while dragging a file/folder over it */
+.tree-row.drop-target {
+  background: var(--accent-dim);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.tree-row.drop-target .material-icons-round { color: var(--accent); }
 .tree-row .material-icons-round,
 .mosaic-row .material-icons-round { font-size: 18px; color: var(--text-3); }
 .tree-row.root { font-weight: 600; }
@@ -319,6 +326,10 @@ button {
 }
 .tree-action:hover, .tree-action:active { background: rgba(255, 255, 255, 0.08); color: var(--accent); }
 .tree-action .material-icons-round { font-size: 17px; }
+/* rows can carry two or three actions (rename, new folder, delete) */
+.tree-action + .tree-action { margin-left: -2px; }
+.mosaic-row .tree-action { width: 28px; margin: -4px 0; }
+.mosaic-row .tree-action:last-child { margin-right: -4px; }
 
 .caret {
   display: grid;
@@ -355,7 +366,8 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover;          /* JS overrides per tile zoom mode */
+  transform-origin: center;
   opacity: 0;
   transition: opacity 0.35s ease;
 }
@@ -403,8 +415,33 @@ button {
 }
 .tile-overlay.visible { opacity: 1; pointer-events: auto; }
 
-.tile-chip {
+/* bottom title: which folder the tile loops + the file playing now */
+.tile-title {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+.tile-scope {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(10, 10, 13, 0.62);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 0 1px var(--line-strong) inset;
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tile-file {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -429,6 +466,7 @@ button {
   transition: background 0.12s;
 }
 .tile-btn:hover, .tile-btn:active { background: rgba(255, 255, 255, 0.16); }
+.tile-btn.on { color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .tile-btn .material-icons-round { font-size: 17px; }
 
 .tile-pill {

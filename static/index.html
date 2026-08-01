@@ -60,8 +60,11 @@
 
     <div class="sb-section-h">
       <span>Libreria</span>
+      <button id="manageBtn" class="sb-icon-btn" title="Riordina i file">
+        <span class="material-icons-round">drive_file_move</span>
+      </button>
     </div>
-    <p class="sb-hint">Tocca per riprodurre &middot; tieni premuto e trascina per il mosaico</p>
+    <p class="sb-hint" id="libHint">Tocca per riprodurre &middot; tieni premuto e trascina per il mosaico o su una cartella per spostare</p>
     <div id="library"></div>
 
     <div class="sb-section-h">
@@ -82,14 +85,14 @@
     </div>
   </main>
 
-  <!-- Save mosaic modal -->
-  <div id="save-modal" class="modal-wrap hidden">
+  <!-- Text prompt modal (save / rename mosaic, new folder, rename file) -->
+  <div id="prompt-modal" class="modal-wrap hidden">
     <div class="modal">
-      <h4>Salva mosaico</h4>
-      <input id="mosaicName" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Nome del mosaico" />
+      <h4 id="promptTitle">Salva mosaico</h4>
+      <input id="promptInput" type="text" maxlength="60" autocomplete="off" spellcheck="false" />
       <div class="modal-actions">
-        <button id="saveCancel" class="btn ghost">Annulla</button>
-        <button id="saveConfirm" class="btn primary">Salva</button>
+        <button id="promptCancel" class="btn ghost">Annulla</button>
+        <button id="promptOk" class="btn primary">Salva</button>
       </div>
     </div>
   </div>

@@ -7,3 +7,8 @@ services:
       - ${PORT}:8080
     volumes:
       - ${VIDEO_DIR}:/app/videos
+      - proxies:/app/proxies
+
+volumes:
+  # low-res proxies built on demand; safe to delete, they get rebuilt
+  proxies:

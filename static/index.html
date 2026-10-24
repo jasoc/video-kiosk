@@ -16,7 +16,6 @@
   <!-- Start / idle overlay (also provides the user gesture for unmuted autoplay) -->
   <div id="start-screen">
     <div class="start-inner">
-      <div class="start-mark"></div>
       <h1>Video Kiosk</h1>
       <p>Tocca per iniziare</p>
       <span class="start-sub">Tieni premuto un elemento della libreria e trascinalo per comporre un mosaico</span>
@@ -60,11 +59,8 @@
 
     <div class="sb-section-h">
       <span>Libreria</span>
-      <button id="manageBtn" class="sb-icon-btn" title="Riordina i file">
-        <span class="material-icons-round">drive_file_move</span>
-      </button>
     </div>
-    <p class="sb-hint" id="libHint">Tocca per riprodurre &middot; tieni premuto e trascina per il mosaico o su una cartella per spostare</p>
+    <p class="sb-hint">Tocca per riprodurre &middot; tieni premuto e trascina: su un video del mosaico per mescolarli, nello spazio vuoto o su &laquo;Nuovo tassello&raquo; per aggiungerne uno</p>
     <div id="library"></div>
 
     <div class="sb-section-h">
@@ -79,13 +75,15 @@
   <!-- Canvas -->
   <main id="canvas">
     <div class="grid-stack" id="grid"></div>
-    <div id="drop-hint">
-      <span class="material-icons-round">add_to_queue</span>
-      <span>Rilascia qui</span>
-    </div>
   </main>
 
-  <!-- Text prompt modal (save / rename mosaic, new folder, rename file) -->
+  <!-- Fixed drop zone: always adds a new tile, even on a full canvas -->
+  <div id="new-zone">
+    <span class="material-icons-round">add_to_queue</span>
+    <span>Nuovo tassello</span>
+  </div>
+
+  <!-- Text prompt modal (save / rename mosaic) -->
   <div id="prompt-modal" class="modal-wrap hidden">
     <div class="modal">
       <h4 id="promptTitle">Salva mosaico</h4>
@@ -93,6 +91,30 @@
       <div class="modal-actions">
         <button id="promptCancel" class="btn ghost">Annulla</button>
         <button id="promptOk" class="btn primary">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trim dialog: cut every video a tile can play -->
+  <div id="trim-modal" class="modal-wrap hidden">
+    <div class="trim">
+      <header class="trim-h">
+        <span class="material-icons-round">content_cut</span>
+        <h4 id="trimTitle"></h4>
+        <button id="trimClose" class="tb-btn" title="Chiudi"><span class="material-icons-round">close</span></button>
+      </header>
+      <div class="trim-body">
+        <div id="trimList" class="trim-list"></div>
+        <div class="trim-edit">
+          <video id="trimVideo" muted playsinline preload="auto"></video>
+          <div class="trim-bar">
+            <div id="trimTrack"></div>
+            <span id="trimTime" class="tl-time"></span>
+            <button id="trimReset" class="btn ghost" title="Usa tutto il video">Tutto</button>
+          </div>
+          <p id="trimFile" class="trim-file"></p>
+          <p class="sb-hint">Trascina le maniglie per scegliere la parte del video da usare</p>
+        </div>
       </div>
     </div>
   </div>

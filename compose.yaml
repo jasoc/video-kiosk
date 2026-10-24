@@ -10,9 +10,12 @@ services:
       - ./:/app
       - ${VIDEO_DIR}:/app/videos
       - proxies:/app/proxies
+      - data:/app/data
     environment:
       - PORT=${PORT}
 
 volumes:
   # low-res proxies built on demand; safe to delete, they get rebuilt
   proxies:
+  # saved mosaics, one JSON file each: this one is worth keeping
+  data:

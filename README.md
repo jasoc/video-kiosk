@@ -12,7 +12,14 @@ no build step. One Docker container, one folder of videos.
 - **Random clip loops** — tap the library root, any folder, or a single video to loop
   random excerpts from it.
 - **Two playback modes per player** — random clips (5s–60s, in 5s steps) or whole videos
-  looped end to end. Configurable independently for every tile in a mosaic.
+  looped end to end, with a seek bar and play/pause. Configurable independently for every
+  tile in a mosaic.
+- **Mixed players** — drop a second folder (or video) on a player and it mixes clips from
+  both.
+- **Cuts** — drag the two handles on a player's timeline to use only part of the video
+  on screen (loop it, or draw random clips from it). Tap the folder chip of a player to
+  cut every video it can play, with a large preview.
+- **Duplicate** — copy a player with all its folders, settings and cuts in one tap.
 - **Mosaic mode** — long-press an item in the library and drag it onto the canvas to
   build a split view of up to 6 videos, freely draggable and resizable (GridStack).
 - **Layout presets** — auto, columns, rows, 2×2 and 3×2 grids. Layouts always fill the
@@ -20,7 +27,7 @@ no build step. One Docker container, one folder of videos.
 - **Random mosaics** — one tap on a folder builds a mosaic with a random number of
   players in a random layout, all looping clips from that folder.
 - **Saved mosaics** — name a composition and restore it later, geometry and per-tile
-  modes included.
+  settings included. Stored on the server, so every device sees the same list.
 - **Smooth transitions** — every tile double-buffers two `<video>` elements and
   prefetches the next clip, so changes are instant crossfades with no loading flash.
 - **Flat memory usage** — the server streams bytes with HTTP Range support and keeps no
@@ -52,6 +59,12 @@ services:
       - "${PORT}:8080"
     volumes:
       - ${VIDEO_DIR}:/app/videos
+      - proxies:/app/proxies
+      - data:/app/data
+
+volumes:
+  proxies:   # low-res copies for mosaics, rebuilt on demand
+  data:      # saved mosaics (JSON files) — keep this one
 ```
 
 ```bash
@@ -69,8 +82,11 @@ bind-mounts the repository for live editing.
 |---|---|
 | Tap a folder or video in the library | Plays it full-canvas as a loop of random clips |
 | Tap the mosaic icon on a folder row | Builds a random mosaic from that folder |
-| Long-press an item and drag it onto the canvas | Adds it to the mosaic (up to 6) |
-| Tap a video in the mosaic | Reveals its controls: clip length, playback mode, skip, remove |
+| Long-press an item and drag it onto empty space or onto «Nuovo tassello» | Adds it to the mosaic (up to 6) |
+| Long-press an item and drag it onto a video in the mosaic | Mixes it into that video |
+| Tap a video in the mosaic | Reveals its controls: timeline, clip length, zoom, playback mode, duplicate, skip, remove |
+| Drag the handles on a player's timeline | Restricts that video to the selected part |
+| Tap the folder chip of a player | Opens the cut dialog for every video it can play |
 | Drag a tile's corner handle | Resizes it freely |
 | Layout button in the top bar | Applies a preset layout |
 | `+` next to "Mosaici salvati" | Saves the current mosaic under a name |
@@ -82,15 +98,20 @@ Audio plays only when a single video fills the canvas; mosaic tiles are muted.
 | Variable | Default | Meaning |
 |---|---|---|
 | `VIDEOS_DIR` | `/app/videos` | Where the container looks for videos |
+| `DATA_DIR` | `/app/data` | Where saved mosaics are written, one JSON file each |
 | `PORT` | `8080` | Host port published by compose |
 
-Saved mosaics live in the browser's `localStorage`, so they belong to the device you
-created them on.
+Saved mosaics are shared by every device. Mosaics saved by older versions in a browser's
+`localStorage` are moved to the server automatically the first time that browser opens
+the new version.
+
+The app never modifies the video library: organise your files outside of it.
 
 ## Architecture
 
-- **Backend** — Flask (`app.py`, ~130 lines). Serves the folder tree, streams video
-  files with Range support, and returns random clip descriptors. Caches only metadata
+- **Backend** — Flask (`app.py`, ~120 lines). Serves the folder tree, streams video
+  files with Range support, returns random clip descriptors and stores saved mosaics
+  as JSON files. Caches only metadata
   (file list and `ffprobe` durations), never video bytes.
 - **Frontend** — vanilla HTML/CSS/JS (`static/`). GridStack handles mosaic drag and
   resize; everything else is hand-rolled.

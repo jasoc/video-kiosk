@@ -6,10 +6,12 @@
 //  one, then swapped with a crossfade. No element is ever created per
 //  clip, so client memory stays flat.
 //
-//  Per tile: mode "clips" (random clips, 5..60s) or "full" (whole
-//  videos looped), plus a zoom mode (fill / fit / smart crop). Mosaics
-//  (tiles + modes + geometry) can be saved to localStorage, reloaded and
-//  updated from the sidebar.
+//  Per tile: one or more scopes mixed together (drop a library entry on
+//  a tile to add one), mode "clips" (random clips, 5..60s) or "full"
+//  (whole videos, with a seek bar), a zoom mode (fill / fit / smart crop)
+//  and, per file, a cut: the part of the video to loop or draw clips from.
+//  Mosaics (tiles + settings + geometry) are JSON files on the server,
+//  shared by every client.
 //
 //  The grid does not gravitate: tiles stay exactly where they are put,
 //  and a new tile only ever takes free space (or half of the biggest
@@ -24,7 +26,7 @@ const GRID_ROWS = 12;
 const PRESS_MS = 350;          // long-press before a tree drag starts
 const DRAG_SLOP = 12;          // px of movement that cancels a press
 const DURATIONS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-const STORE_KEY = "kiosk.mosaics";
+const LEGACY_KEY = "kiosk.mosaics"; // pre-server localStorage mosaics
 
 // Zoom cycle. "smart" crops the black bars baked inside the frame.
 const ZOOMS = [
@@ -36,9 +38,9 @@ const ZOOMS = [
 let grid;                      // GridStack instance
 let paused = false;
 let currentPreset = "auto";
-let manageMode = false;        // sidebar acts as a file manager
 const tiles = new Map();       // gridstack item el -> Tile
 const openDirs = new Set();    // folder paths expanded in the tree
+let libFiles = [];             // every video path, in tree order
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -184,15 +186,135 @@ function detectCrop(el, file) {
 }
 
 // ---------------------------------------------------------------------
-//  Tile: one video slot in the grid, looping its scope
+//  Track: a timeline bar with a playhead and two range handles. Used by
+//  every tile's overlay and by the trim dialog. Pure UI: it owns no
+//  video, it reports what the finger does through callbacks.
 // ---------------------------------------------------------------------
+const MIN_RANGE = 1;           // shortest selectable range, seconds
+
+class Track {
+  constructor({ seekable = () => true, onStart, onPreview, onSeek, onRange }) {
+    this.el = document.createElement("div");
+    this.el.className = "tl-track";
+    this.el.innerHTML =
+      '<div class="tl-sel"></div><div class="tl-head"></div>' +
+      '<div class="tl-h"></div><div class="tl-h"></div>';
+    [this.selEl, this.headEl, ...this.handles] = this.el.children;
+    stopDrag(this.el);
+    this.dur = 0;
+    this.range = null;         // [a, b] or null = the whole file
+    this.now = 0;
+    this.drag = null;          // { kind: null (scrub) | 0 | 1 (handle), t, range }
+
+    const timeAt = x => {
+      const r = this.el.getBoundingClientRect();
+      return clamp((x - r.left) / r.width, 0, 1) * this.dur;
+    };
+    this.el.addEventListener("pointerdown", e => {
+      if (!this.dur) return;
+      // A press within reach of a handle grabs it, anywhere else scrubs.
+      const [a, b] = this.range || [0, this.dur];
+      const r = this.el.getBoundingClientRect();
+      const px = t => r.left + t / this.dur * r.width;
+      const da = Math.abs(e.clientX - px(a)), db = Math.abs(e.clientX - px(b));
+      let kind = null;
+      if (Math.min(da, db) < 24) kind = da < db || (da === db && e.clientX < px(a)) ? 0 : 1;
+      if (kind === null && !seekable()) return;
+      this.drag = { kind, t: this.now, range: kind === null ? null : [a, b] };
+      try { this.el.setPointerCapture(e.pointerId); } catch (err) {}
+      onStart?.();
+      move(e);
+    });
+    const move = e => {
+      const d = this.drag;
+      if (!d) return;
+      let t = timeAt(e.clientX);
+      if (d.kind === null) d.t = t;
+      else if (d.kind === 0) t = d.range[0] = clamp(t, 0, d.range[1] - MIN_RANGE);
+      else t = d.range[1] = clamp(t, d.range[0] + MIN_RANGE, this.dur);
+      this.paint();
+      onPreview?.(t);
+    };
+    const end = () => {
+      const d = this.drag;
+      if (!d) return;
+      this.drag = null;
+      if (d.kind === null) onSeek?.(d.t);
+      else onRange?.(d.range, d.kind);
+      this.paint();
+    };
+    this.el.addEventListener("pointermove", move);
+    this.el.addEventListener("pointerup", end);
+    this.el.addEventListener("pointercancel", end);
+    this.el.addEventListener("click", e => e.stopPropagation());
+  }
+
+  set(dur, range, now) {
+    this.dur = dur || 0;
+    this.range = range;
+    if (!this.drag) this.now = now;
+    this.paint();
+  }
+
+  // "now / total" normally, "from – to" while a handle is being dragged.
+  label() {
+    if (this.drag?.range) return `${fmtTime(this.drag.range[0])} – ${fmtTime(this.drag.range[1])}`;
+    const now = this.drag ? this.drag.t : this.now;
+    return `${fmtTime(now)} / ${fmtTime(this.dur)}`;
+  }
+
+  paint() {
+    const d = this.dur || 1, pct = t => clamp(t / d, 0, 1) * 100;
+    const [a, b] = this.drag?.range || this.range || [0, this.dur];
+    this.selEl.style.left = pct(a) + "%";
+    this.selEl.style.right = 100 - pct(b) + "%";
+    this.selEl.classList.toggle("cut", !!(this.drag?.range || this.range));
+    this.handles[0].style.left = pct(a) + "%";
+    this.handles[1].style.left = pct(b) + "%";
+    this.headEl.style.left = pct(this.drag?.kind === null ? this.drag.t : this.now) + "%";
+  }
+}
+
+// fastSeek lands on a keyframe: imprecise, but light enough to scrub with.
+function previewSeek(v, t) {
+  if (v.fastSeek) v.fastSeek(t); else v.currentTime = t;
+}
+
+// ---------------------------------------------------------------------
+//  Tile: one video slot in the grid, looping its scopes
+// ---------------------------------------------------------------------
+const scopeLabel = p => p ? p.split("/").pop() : "Tutti i video";
+
+// "a + b", with "×2" when the same scope was dropped twice (more weight).
+function scopeTitle(scopes) {
+  const n = new Map();
+  for (const s of scopes) n.set(s, (n.get(s) || 0) + 1);
+  return [...n].map(([s, k]) => scopeLabel(s) + (k > 1 ? ` ×${k}` : "")).join(" + ");
+}
+
+function fmtTime(s) {
+  s = Math.max(0, Math.floor(s || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// {file: [from, to]} as stored in a mosaic, dropping anything malformed.
+function cleanRanges(r) {
+  const out = {};
+  if (r && typeof r === "object")
+    for (const [f, v] of Object.entries(r))
+      if (Array.isArray(v) && v[1] - v[0] >= MIN_RANGE) out[f] = [+v[0], +v[1]];
+  return out;
+}
+
 class Tile {
-  constructor(contentEl, scope, label, opts = {}) {
-    this.scope = scope;        // "" = root, folder path, or file path
-    this.label = label;
+  constructor(contentEl, scopes, opts = {}) {
+    // "" = root, folder paths and/or file paths. Several = a mixed tile;
+    // the same scope twice simply weighs double.
+    this.scopes = scopes.length ? [...scopes] : [""];
     this.mode = opts.mode === "full" ? "full" : "clips";
     this.duration = DURATIONS.includes(opts.duration) ? opts.duration : 20;
     this.zoom = ZOOMS.some(z => z.id === opts.zoom) ? opts.zoom : "fill";
+    this.ranges = cleanRanges(opts.ranges);   // file -> [from, to] seconds
     this.gen = 0;              // bumped to cancel stale async work
     this.timer = null;
     this.cropT = null;
@@ -207,23 +329,63 @@ class Tile {
     this.spinner.className = "tile-spinner";
     this.spinner.innerHTML = '<span class="material-icons-round">hourglass_top</span>';
 
-    // --- overlay controls ---
+    // --- overlay: title row, timeline row, controls row ---
     this.overlay = document.createElement("div");
     this.overlay.className = "tile-overlay";
+
     this.title = document.createElement("div");
     this.title.className = "tile-title";
-    this.scopeEl = document.createElement("span");
+    this.scopeEl = document.createElement("button");
     this.scopeEl.className = "tile-scope";
+    this.scopeEl.title = "Taglia i video di questo tassello";
+    this.scopeEl.innerHTML = '<span class="material-icons-round">content_cut</span><span></span>';
+    this.scopeText = this.scopeEl.lastChild;
+    stopDrag(this.scopeEl);
+    this.scopeEl.addEventListener("click", e => { e.stopPropagation(); openTrim(this); });
     this.fileEl = document.createElement("span");
     this.fileEl.className = "tile-file";
-    this.fileEl.textContent = label;
+    this.fileEl.textContent = scopeTitle(this.scopes);
     this.title.append(this.scopeEl, this.fileEl);
+
+    this.tl = document.createElement("div");
+    this.tl.className = "tile-tl";
+    this.playBtn = tileBtn("pause", () => this.togglePlay());
+    this.track = new Track({
+      seekable: () => this.mode === "full",
+      onStart: () => clearTimeout(this.timer),
+      onPreview: t => {
+        previewSeek(this.videos[this.active], t);
+        this.showOverlay();
+      },
+      onSeek: t => {
+        const v = this.videos[this.active];
+        v.currentTime = t;
+        if (!v.paused) this.armTimer();
+        this.showOverlay();
+      },
+      onRange: (r, which) => this.setRange(this.clip.file, r, this.clip.dur, which),
+    });
+    this.timeEl = document.createElement("span");
+    this.timeEl.className = "tl-time";
+    this.resetBtn = tileBtn("restart_alt", () => this.setRange(this.clip.file, null, this.clip.dur));
+    this.resetBtn.title = "Usa tutto il video";
+    this.tl.append(this.playBtn, this.track.el, this.timeEl, this.resetBtn);
+
+    const bar = document.createElement("div");
+    bar.className = "tile-bar";
     this.durBtn = tilePill(() => this.toggleDurPanel());
     this.zoomBtn = tileBtn("crop", () => this.cycleZoom());
     this.modeBtn = tileBtn("shuffle", () => this.toggleMode());
+    const spacer = document.createElement("span");
+    spacer.className = "tile-spacer";
+    const dup = tileBtn("content_copy", () => duplicateTile(this.root.parentElement));
+    dup.title = "Duplica il tassello";
     const skip = tileBtn("skip_next", () => this.advance());
+    skip.title = "Prossima clip";
     const close = tileBtn("close", () => removeTile(this.root.parentElement));
-    this.overlay.append(this.title, this.durBtn, this.zoomBtn, this.modeBtn, skip, close);
+    close.title = "Rimuovi";
+    bar.append(this.durBtn, this.zoomBtn, this.modeBtn, spacer, dup, skip, close);
+    this.overlay.append(this.title, this.tl, bar);
 
     // --- clip duration panel ---
     this.durPanel = document.createElement("div");
@@ -264,18 +426,38 @@ class Tile {
     v.playsInline = true;
     v.preload = "auto";
     v.addEventListener("ended", () => {
-      if (!paused && !v.loop && v === this.videos[this.active]) this.advance();
+      if (!paused && !v.loop && v === this.videos[this.active]) this.clipEnd();
     });
+    // Keep the timeline live, but only while somebody can see it.
+    const live = () => {
+      if (v === this.videos[this.active] && !this.track.drag &&
+          this.overlay.classList.contains("visible")) this.renderTimeline();
+    };
+    for (const ev of ["timeupdate", "play", "pause"]) v.addEventListener(ev, live);
     return v;
+  }
+
+  // The tile plays exactly one file: full mode can loop it in place.
+  isFile(clip) {
+    return !!clip && this.scopes.length === 1 && clip.file === this.scopes[0];
+  }
+
+  // The selection that applies to `clip`, clamped to its length, or null.
+  rangeFor(clip) {
+    const r = clip && this.ranges[clip.file];
+    if (!r) return null;
+    const a = clamp(r[0], 0, clip.dur), b = clamp(r[1], 0, clip.dur);
+    return b - a >= MIN_RANGE ? [a, b] : null;
   }
 
   showOverlay() {
     this.overlay.classList.add("visible");
+    this.renderTimeline();
     clearTimeout(this.overlayT);
     this.overlayT = setTimeout(() => {
       this.overlay.classList.remove("visible");
       this.durPanel.classList.remove("visible");
-    }, 3000);
+    }, 3500);
   }
 
   updateControls() {
@@ -290,18 +472,94 @@ class Tile {
     this.durBtn.style.display = this.mode === "clips" ? "" : "none";
     this.durPanel.querySelectorAll(".dur-opt").forEach(b =>
       b.classList.toggle("active", +b.dataset.dur === this.duration));
+    this.renderTimeline();
   }
 
-  // Bottom title: the file being played and, when the tile loops a whole
-  // folder, which folder it comes from.
+  // Title: the file being played and which scope(s) it comes from. The
+  // scope chip opens the trim dialog; a single-file tile hides it (its
+  // own timeline is all there is to cut).
   updateTitle(clip) {
     const parts = clip.file.split("/");
     this.fileEl.textContent = parts.pop();
-    const singleFile = this.scope && this.scope === clip.file;
-    this.scopeEl.textContent = this.scope
-      ? this.label
-      : (parts.length ? parts[parts.length - 1] : "Libreria");
-    this.scopeEl.style.display = singleFile ? "none" : "";
+    const whole = this.scopes.length === 1 && !this.scopes[0];
+    this.scopeText.textContent = whole
+      ? (parts.length ? parts[parts.length - 1] : "Libreria")
+      : scopeTitle(this.scopes);
+    this.scopeEl.style.display = this.isFile(clip) ? "none" : "";
+  }
+
+  // Timeline of the clip on screen: handles to cut it (any mode, any
+  // scope), plus scrubbing and play/pause in full mode.
+  renderTimeline() {
+    const clip = this.clip;
+    this.tl.style.display = clip ? "" : "none";
+    if (!clip) return;
+    const v = this.videos[this.active];
+    this.track.set(clip.dur || v.duration, this.rangeFor(clip), v.currentTime);
+    this.playBtn.style.display = this.mode === "full" ? "" : "none";
+    this.playBtn.querySelector("span").textContent = v.paused ? "play_arrow" : "pause";
+    this.resetBtn.style.display = this.rangeFor(clip) ? "" : "none";
+    this.timeEl.textContent = this.track.label();
+  }
+
+  // Store the selection of one file (null or the whole file = no cut). If
+  // that file is on screen its window is re-cut in place, same element,
+  // no reload; `which` = the handle just moved, so ending on the end
+  // handle lets you hear the cut point.
+  setRange(file, range, dur, which = 0) {
+    if (range && (range[0] > 0.1 || range[1] < dur - 0.1))
+      this.ranges[file] = [Math.round(range[0] * 100) / 100, Math.round(range[1] * 100) / 100];
+    else
+      delete this.ranges[file];
+    // A prefetched clip of the same file may now start outside the cut.
+    if (this.next?.clip.file === file) {
+      this.next = null;
+      this.prefetch();
+    }
+    const clip = this.clip;
+    if (!clip || clip.file !== file) return;
+    const v = this.videos[this.active];
+    const r = this.rangeFor(clip);
+    const [a, b] = r || [0, clip.dur];
+    if (this.mode === "full") {
+      clip.start = a;
+      clip.length = b - a;
+      if (this.isFile(clip)) v.loop = !r;
+    } else {
+      clip.length = Math.min(this.duration, b - a);
+      clip.start = which === 1 ? b - clip.length : a;
+    }
+    v.currentTime = which === 1
+      ? Math.max(clip.start, clip.start + clip.length - 3) : clip.start;
+    if (!v.paused) this.armTimer();
+    this.showOverlay();
+  }
+
+  togglePlay() {
+    const v = this.videos[this.active];
+    if (v.paused) {
+      v.play().catch(() => {});
+      this.armTimer();
+    } else {
+      v.pause();
+      clearTimeout(this.timer);
+    }
+    this.showOverlay();
+  }
+
+  // Dropping another library entry on this tile mixes it in. Dropping one
+  // that is already there is allowed: it just weighs double.
+  addScope(scope) {
+    this.scopes.push(scope);
+    this.next = null;
+    this.advance();
+    toast(`Mescolati: ${scopeTitle(this.scopes)}`);
+  }
+
+  // Everything needed to rebuild this tile elsewhere (duplicate, mosaic).
+  settings() {
+    return { scopes: [...this.scopes], mode: this.mode, duration: this.duration,
+             zoom: this.zoom, ranges: { ...this.ranges } };
   }
 
   toggleMode() {
@@ -376,13 +634,20 @@ class Tile {
 
   async fetchClip() {
     const params = new URLSearchParams({ duration: this.duration });
-    if (this.scope) params.set("target", this.scope);
+    for (const s of this.scopes) params.append("target", s);
     const res = await fetch(`/random?${params}`);
     if (!res.ok) throw new Error("no clips");
     const clip = await res.json();
+    // A cut narrows the window: full mode plays exactly it, clips mode
+    // draws its in-point from inside it.
+    const r = this.rangeFor(clip);
+    const [a, b] = r || [0, clip.dur];
     if (this.mode === "full") {
-      clip.start = 0;
-      clip.length = clip.dur;
+      clip.start = a;
+      clip.length = b - a;
+    } else if (r) {
+      clip.length = Math.min(this.duration, b - a);
+      clip.start = a + Math.random() * (b - a - clip.length);
     }
     return clip;
   }
@@ -447,9 +712,11 @@ class Tile {
     old.classList.remove("front");
     old.pause();
 
-    // A full-mode tile scoped to a single file loops natively: seamless,
-    // no timers, no prefetch traffic.
-    el.loop = this.mode === "full" && !!this.scope && clip.file === this.scope;
+    // A full-mode tile on a single file loops in place: natively when it
+    // plays the whole file (seamless, no timers), by seeking back when it
+    // is cut. Either way no prefetch traffic.
+    const self = this.mode === "full" && this.isFile(clip);
+    el.loop = self && !this.rangeFor(clip);
 
     el.muted = tiles.size > 1;      // audio only in single view
     if (!paused) {
@@ -457,8 +724,9 @@ class Tile {
       this.armTimer();
     }
     this.updateTitle(clip);
+    this.renderTimeline();
     this.refreshCrop();
-    if (!el.loop) this.prefetch();
+    if (!self) this.prefetch();
   }
 
   armTimer() {
@@ -466,13 +734,32 @@ class Tile {
     const v = this.videos[this.active];
     if (!this.clip || v.loop) return;
     const remaining = (this.clip.start + this.clip.length) - v.currentTime;
-    this.timer = setTimeout(() => this.advance(), Math.max(0.3, remaining) * 1000);
+    this.timer = setTimeout(() => this.clipEnd(), Math.max(0.3, remaining) * 1000);
+  }
+
+  // The current window is over: a full-mode single file loops its cut in
+  // place, everything else moves on to the next clip.
+  clipEnd() {
+    const v = this.videos[this.active];
+    if (this.mode !== "full" || !this.isFile(this.clip)) {
+      this.advance();
+      return;
+    }
+    // The timer runs on wall time; after a stall the video may lag behind.
+    if (v.currentTime < this.clip.start + this.clip.length - 0.3 && !v.ended) {
+      this.armTimer();
+      return;
+    }
+    v.currentTime = this.clip.start;
+    v.play().catch(() => {});
+    this.armTimer();
   }
 
   async prefetch() {
     const gen = this.gen;
     try {
       const clip = await this.fetchClip();
+      if (gen !== this.gen) return;
       const el = this.videos[1 - this.active];
       await this.prepare(el, clip);
       if (gen === this.gen) this.next = { clip, el };
@@ -507,12 +794,13 @@ class Tile {
 // In a mosaic ask the server for a low-res proxy: six full-quality
 // streams are what makes a tablet stutter. A single tile (the only one
 // with audio) always gets the original.
+const encodePath = file => file.split("/").map(encodeURIComponent).join("/");
+
 function videoUrl(file) {
-  const path = file.split("/").map(encodeURIComponent).join("/");
   // getGridItems() (not tiles.size) so a tile loading its very first clip
   // already counts itself.
   const many = grid.getGridItems().length > 1;
-  return `/video/${path}${many ? "?q=low" : ""}`;
+  return `/video/${encodePath(file)}${many ? "?q=low" : ""}`;
 }
 
 function stopDrag(el) {
@@ -619,13 +907,13 @@ function freeRect() {
 
 // Where to put a new tile. Free space first — even a tiny hole, the user
 // can resize afterwards. Only when the canvas is completely covered do we
-// carve half of the biggest tile, so at most ONE existing tile changes
-// and none of them ever moves.
-function placeNew() {
+// carve half of a tile (`prefer` if given, else the biggest), so at most
+// ONE existing tile changes and none of them ever moves.
+function placeNew(prefer) {
   const free = freeRect();
   if (free) return free;
   const items = grid.getGridItems().map(itemRect)
-    .sort((a, b) => b.w * b.h - a.w * a.h);
+    .sort((a, b) => (b.el === prefer) - (a.el === prefer) || b.w * b.h - a.w * a.h);
   for (const it of items) {
     if (it.w >= 2 && it.w >= it.h) {
       const half = Math.floor(it.w / 2);
@@ -660,22 +948,29 @@ function updateAudio() {
     t.videos[t.active].muted = !single;
 }
 
-function addTile(scope, label, opts = {}) {
+function addTile(scopes, opts = {}) {
   if (tiles.size >= MAX_TILES) {
     toast(`Massimo ${MAX_TILES} video nel mosaico`);
     return null;
   }
   hideStart();
-  const rect = opts.rect || placeNew();
+  const rect = opts.rect || placeNew(opts.near);
   if (!rect) {
     toast("Non c'è più spazio: ridimensiona un tassello");
     return null;
   }
   const el = grid.addWidget(rect);
-  const tile = new Tile(el.querySelector(".grid-stack-item-content"), scope, label, opts);
+  const tile = new Tile(el.querySelector(".grid-stack-item-content"), scopes, opts);
   tiles.set(el, tile);
   updateAudio();
   return tile;
+}
+
+// A copy of a tile with all its scopes and settings: next to it if there
+// is room, otherwise by splitting the tile itself in two.
+function duplicateTile(el) {
+  const t = tiles.get(el);
+  if (t) addTile(t.scopes, { ...t.settings(), near: el });
 }
 
 function removeTile(el) {
@@ -697,7 +992,7 @@ function clearTiles() {
 
 // Random mosaic: random tile count, random fitting preset, all tiles
 // looping random clips from the same scope.
-function randomMosaic(scope, label) {
+function randomMosaic(scope) {
   clearTiles();
   paused = false;
   updatePauseBtn();
@@ -705,17 +1000,17 @@ function randomMosaic(scope, label) {
   const fitting = Object.keys(PRESETS).filter(id => PRESETS[id].fits(n));
   currentPreset = fitting[Math.floor(Math.random() * fitting.length)];
   for (const [x, y, w, h] of layoutFor(n))
-    addTile(scope, label, { rect: { x, y, w, h } });
+    addTile([scope], { rect: { x, y, w, h } });
   closeSidebar();
 }
 
 // Tap on a tree item: single full-canvas loop of that scope.
-function playScope(scope, label) {
+function playScope(scope) {
   clearTiles();
   paused = false;
   currentPreset = "auto";
   updatePauseBtn();
-  addTile(scope, label, { rect: { x: 0, y: 0, w: GRID_COLS, h: GRID_ROWS } });
+  addTile([scope], { rect: { x: 0, y: 0, w: GRID_COLS, h: GRID_ROWS } });
   closeSidebar();
 }
 
@@ -751,26 +1046,66 @@ function toggleLayoutPop() {
 }
 
 // ---------------------------------------------------------------------
-//  Saved mosaics (localStorage)
+//  Saved mosaics — JSON files on the server, shared by every client.
+//  The list is re-fetched whenever the sidebar opens, so changes made on
+//  another device show up without any sync machinery.
 // ---------------------------------------------------------------------
-function loadStore() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
-  catch (e) { return []; }
+let mosaics = [];
+
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Operazione non riuscita");
+  return data;
 }
 
-function saveStore(list) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(list));
+async function refreshMosaics() {
+  try { mosaics = await api("GET", "/mosaics"); }
+  catch (e) { /* server unreachable: keep the last list we had */ }
   renderMosaics();
+}
+
+async function mosaicCall(method, m, okMsg) {
+  try {
+    await api(method, `/mosaics/${encodeURIComponent(m.id)}`, method === "PUT" ? m : null);
+    toast(okMsg);
+  } catch (e) {
+    toast(e.message);
+  }
+  refreshMosaics();
+}
+
+// One-off move of the mosaics an older version kept in this browser's
+// localStorage. Ids are fixed (and written back) before uploading, so a
+// failed attempt simply retries at the next start without duplicates;
+// the local copy is dropped only once every mosaic is on the server.
+async function migrateLocal() {
+  try {
+    const list = JSON.parse(localStorage.getItem(LEGACY_KEY)) || [];
+    if (!list.length) return;
+    list.forEach((m, i) => {
+      m.id ||= newId();
+      m.created ||= Date.now() + i;   // keep the old order
+    });
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(list));
+    for (const m of list) await api("PUT", `/mosaics/${encodeURIComponent(m.id)}`, m);
+    localStorage.removeItem(LEGACY_KEY);
+    toast(list.length === 1 ? "1 mosaico spostato sul server"
+                            : `${list.length} mosaici spostati sul server`);
+  } catch (e) { /* retry next time */ }
 }
 
 function snapshotTiles() {
   // Geometry comes from the DOM so manual drags and resizes are kept.
   return grid.getGridItems().map(el => {
-    const t = tiles.get(el), r = itemRect(el);
-    return {
-      scope: t.scope, label: t.label, mode: t.mode, duration: t.duration,
-      zoom: t.zoom, x: r.x, y: r.y, w: r.w, h: r.h,
-    };
+    const r = itemRect(el);
+    return { ...tiles.get(el).settings(), x: r.x, y: r.y, w: r.w, h: r.h };
   });
 }
 
@@ -780,8 +1115,9 @@ function loadMosaic(m) {
   currentPreset = m.preset || "auto";
   updatePauseBtn();
   for (const td of m.tiles.slice(0, MAX_TILES)) {
-    addTile(td.scope, td.label, {
-      mode: td.mode, duration: td.duration, zoom: td.zoom,
+    // Mosaics saved before mixed tiles existed have a single `scope`.
+    addTile(td.scopes || [td.scope || ""], {
+      mode: td.mode, duration: td.duration, zoom: td.zoom, ranges: td.ranges,
       rect: { x: td.x, y: td.y, w: td.w, h: td.h },
     });
   }
@@ -791,43 +1127,31 @@ function loadMosaic(m) {
 function saveMosaic() {
   if (!tiles.size) { toast("Nessun video nel mosaico"); return; }
   askText({ title: "Salva mosaico", ok: "Salva",
-            placeholder: `Mosaico ${loadStore().length + 1}` }, name => {
-    const list = loadStore();
-    list.push({ id: Date.now().toString(36), name,
-                preset: currentPreset, tiles: snapshotTiles() });
-    saveStore(list);
-    toast("Mosaico salvato");
-  });
+            placeholder: `Mosaico ${mosaics.length + 1}` }, name =>
+    mosaicCall("PUT", { id: newId(), name, created: Date.now(),
+                        preset: currentPreset, tiles: snapshotTiles() },
+               "Mosaico salvato"));
 }
 
 // Overwrite a saved mosaic with what is on the canvas right now, so an
 // existing mosaic can be tweaked instead of re-created.
 function updateMosaic(m) {
   if (!tiles.size) { toast("Nessun video nel mosaico"); return; }
-  const list = loadStore();
-  const i = list.findIndex(x => x.id === m.id);
-  if (i < 0) return;
-  list[i] = { ...list[i], preset: currentPreset, tiles: snapshotTiles() };
-  saveStore(list);
-  toast("Mosaico aggiornato");
+  mosaicCall("PUT", { ...m, preset: currentPreset, tiles: snapshotTiles() },
+             "Mosaico aggiornato");
 }
 
 function renderMosaics() {
   const box = document.getElementById("mosaics");
   box.replaceChildren();
-  const list = loadStore();
-  let dirty = false;
-  for (const m of list) if (!m.id) { m.id = Math.random().toString(36).slice(2); dirty = true; }
-  if (dirty) localStorage.setItem(STORE_KEY, JSON.stringify(list));
-
-  if (!list.length) {
+  if (!mosaics.length) {
     const p = document.createElement("p");
     p.className = "sb-hint";
     p.textContent = "Nessun mosaico salvato";
     box.append(p);
     return;
   }
-  for (const m of list) {
+  for (const m of mosaics) {
     const row = document.createElement("div");
     row.className = "mosaic-row";
     row.innerHTML =
@@ -838,13 +1162,10 @@ function renderMosaics() {
     row.append(
       rowAction("save", "Aggiorna con il mosaico attuale", () => updateMosaic(m)),
       rowAction("drive_file_rename_outline", "Rinomina", () =>
-        askText({ title: "Rinomina mosaico", value: m.name }, name => {
-          const list2 = loadStore();
-          const i = list2.findIndex(x => x.id === m.id);
-          if (i >= 0) { list2[i].name = name; saveStore(list2); }
-        })),
+        askText({ title: "Rinomina mosaico", value: m.name }, name =>
+          mosaicCall("PUT", { ...m, name }, "Mosaico rinominato"))),
       rowAction("delete_outline", "Elimina", () =>
-        saveStore(loadStore().filter(x => x.id !== m.id))),
+        mosaicCall("DELETE", m, "Mosaico eliminato")),
     );
     row.addEventListener("click", () => loadMosaic(m));
     box.append(row);
@@ -894,6 +1215,132 @@ function submitPrompt() {
 }
 
 // ---------------------------------------------------------------------
+//  Trim dialog: cut every video a tile can play, one at a time, with a
+//  big preview. Its single <video> lives in the page and is emptied on
+//  close, so it holds no decoder while hidden.
+// ---------------------------------------------------------------------
+const trim = { tile: null, file: null, track: null };
+
+const trimVideo = () => document.getElementById("trimVideo");
+
+function tileFiles(scopes) {
+  return libFiles.filter(f => scopes.some(s => !s || f === s || f.startsWith(s + "/")));
+}
+
+function openTrim(tile) {
+  trim.tile = tile;
+  document.getElementById("trimTitle").textContent = scopeTitle(tile.scopes);
+  document.getElementById("trim-modal").classList.remove("hidden");
+  const files = tileFiles(tile.scopes);
+  trim.file = null;
+  selectTrimFile(tile.clip && files.includes(tile.clip.file) ? tile.clip.file : files[0]);
+}
+
+function closeTrim() {
+  const v = trimVideo();
+  v.pause();
+  v.removeAttribute("src");
+  v.load();
+  document.getElementById("trim-modal").classList.add("hidden");
+  trim.tile = trim.file = null;
+}
+
+// The cut of the selected file, clamped to the preview's duration.
+function trimRange() {
+  const r = trim.tile?.ranges[trim.file], dur = trimVideo().duration;
+  if (!r || !dur) return r || null;
+  const a = clamp(r[0], 0, dur), b = clamp(r[1], 0, dur);
+  return b - a >= MIN_RANGE ? [a, b] : null;
+}
+
+function renderTrimList() {
+  const box = document.getElementById("trimList");
+  box.replaceChildren();
+  const files = tileFiles(trim.tile.scopes);
+  if (!files.length) {
+    const p = document.createElement("p");
+    p.className = "sb-hint";
+    p.textContent = "Nessun video";
+    box.append(p);
+  }
+  for (const f of files) {
+    const row = document.createElement("button");
+    row.className = "trim-row" + (f === trim.file ? " active" : "");
+    const parts = f.split("/"), name = parts.pop();
+    const r = trim.tile.ranges[f];
+    row.innerHTML =
+      `<span class="row-name">${escapeHtml(name)}` +
+      (parts.length ? `<small>${escapeHtml(parts.join(" / "))}</small>` : "") + `</span>` +
+      (r ? `<span class="trim-cut">${fmtTime(r[0])} – ${fmtTime(r[1])}</span>` : "");
+    row.addEventListener("click", () => selectTrimFile(f));
+    box.append(row);
+  }
+  box.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+}
+
+function selectTrimFile(f) {
+  if (f === trim.file) return;
+  trim.file = f;
+  renderTrimList();
+  document.getElementById("trimFile").textContent = f || "";
+  const v = trimVideo();
+  trim.track.set(0, null, 0);
+  paintTrim();
+  if (!f) return;
+  v.src = `/video/${encodePath(f)}`;
+  v.load();
+}
+
+function paintTrim() {
+  const v = trimVideo(), r = trimRange();
+  trim.track.set(v.duration || 0, r, v.currentTime);
+  document.getElementById("trimTime").textContent = trim.track.label();
+  document.getElementById("trimReset").style.visibility = r ? "" : "hidden";
+}
+
+// Commit a cut to the tile and play the preview from the cut point.
+function commitTrim(range, which = 0) {
+  const v = trimVideo();
+  trim.tile.setRange(trim.file, range, v.duration, which);
+  const [a, b] = trimRange() || [0, v.duration];
+  v.currentTime = which === 1 ? Math.max(a, b - 3) : a;
+  v.play().catch(() => {});
+  renderTrimList();
+  paintTrim();
+}
+
+function initTrim() {
+  const v = trimVideo();
+  trim.track = new Track({
+    onPreview: t => {
+      previewSeek(v, t);
+      document.getElementById("trimTime").textContent = trim.track.label();
+    },
+    onSeek: t => { v.currentTime = t; },
+    onRange: (r, which) => commitTrim(r, which),
+  });
+  document.getElementById("trimTrack").replaceWith(trim.track.el);
+  v.addEventListener("loadedmetadata", () => {
+    v.currentTime = trimRange()?.[0] || 0;
+    v.play().catch(() => {});
+    paintTrim();
+  });
+  // The preview loops the cut, so you see exactly what the tile will play.
+  v.addEventListener("timeupdate", () => {
+    const r = trimRange();
+    if (r && !trim.track.drag && (v.currentTime >= r[1] || v.currentTime < r[0] - 0.5))
+      v.currentTime = r[0];
+    if (!trim.track.drag) paintTrim();
+  });
+  v.addEventListener("click", () => v.paused ? v.play().catch(() => {}) : v.pause());
+  document.getElementById("trimReset").addEventListener("click", () => commitTrim(null));
+  document.getElementById("trimClose").addEventListener("click", closeTrim);
+  document.getElementById("trim-modal").addEventListener("click", e => {
+    if (e.target.id === "trim-modal") closeTrim();
+  });
+}
+
+// ---------------------------------------------------------------------
 //  Global controls
 // ---------------------------------------------------------------------
 function nextAll() {
@@ -931,9 +1378,9 @@ function showStart() { document.getElementById("start-screen").classList.remove(
 function hideStart() { document.getElementById("start-screen").classList.add("hidden"); }
 function closeSidebar() { document.getElementById("sidebar").classList.remove("open"); }
 
-// Another client (or this one, in manage mode) moved files around while a
-// tile was playing. Say so and reload the tree; playback recovers on its
-// own with the next clip.
+// Files were moved or deleted (outside the app) while a tile was playing.
+// Say so and reload the tree; playback recovers on its own with the next
+// clip.
 let troubleAt = 0;
 function libraryTrouble() {
   if (Date.now() - troubleAt < 15000) return;
@@ -943,15 +1390,18 @@ function libraryTrouble() {
 }
 
 // ---------------------------------------------------------------------
-//  Library tree / file manager
+//  Library tree
 // ---------------------------------------------------------------------
 async function loadTree() {
   let data;
   try { data = await (await fetch("/tree")).json(); }
   catch (e) { return; }
+  libFiles = [];
+  const collect = ns => ns.forEach(n => n.type === "dir" ? collect(n.children) : libFiles.push(n.path));
+  collect(data);
   const lib = document.getElementById("library");
   lib.replaceChildren();
-  lib.append(treeRow({ icon: "home", name: "Tutti i video", path: "", kind: "root" }));
+  lib.append(treeRow({ icon: "home", name: scopeLabel(""), path: "", kind: "root" }));
   renderNodes(data, lib, 0);
 }
 
@@ -1000,70 +1450,28 @@ function treeRow({ icon, name, path, kind, depth = 0 }) {
   row.innerHTML =
     `<span class="material-icons-round">${icon}</span>` +
     `<span class="row-name">${escapeHtml(name)}</span>`;
-  const label = kind === "root" ? "Tutti i video" : name;
-
-  if (manageMode) {
-    if (kind !== "file")
-      row.append(rowAction("create_new_folder", "Nuova cartella", () =>
-        askText({ title: "Nuova cartella", placeholder: "Nome cartella" }, n =>
-          fsCall("/fs/folder", { parent: path, name: n }, "Cartella creata"))));
-    if (kind !== "root")
-      row.append(rowAction("drive_file_rename_outline", "Rinomina", () =>
-        askText({ title: "Rinomina", value: name }, n =>
-          fsCall("/fs/rename", { path, name: n }, "Rinominato"))));
-  } else if (kind !== "file") {
+  if (kind !== "file")
     row.append(rowAction("auto_awesome_mosaic", "Mosaico casuale",
-                         () => randomMosaic(path, label)));
-  }
+                         () => randomMosaic(path)));
 
   row.addEventListener("click", () => {
     if (row._dragged) { row._dragged = false; return; }
-    playScope(path, label);
+    playScope(path);
   });
-  makeDraggable(row, path, label);
+  makeDraggable(row, path);
   return row;
 }
 
-async function fsCall(url, body, okMsg) {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Operazione non riuscita");
-    toast(okMsg);
-  } catch (e) {
-    toast(e.message || "Operazione non riuscita");
-  }
-  loadTree();
-}
-
-function toggleManage() {
-  manageMode = !manageMode;
-  document.getElementById("manageBtn").classList.toggle("active", manageMode);
-  document.getElementById("libHint").textContent = manageMode
-    ? "Riordina: crea cartelle, rinomina, trascina un elemento su una cartella"
-    : "Tocca per riprodurre · tieni premuto e trascina per il mosaico o su una cartella per spostare";
-  loadTree();
-}
-
-function canMove(src, dest) {
-  if (!src) return false;                                   // never the root
-  if (dest === src || dest.startsWith(src + "/")) return false;
-  const parent = src.includes("/") ? src.slice(0, src.lastIndexOf("/")) : "";
-  return dest !== parent;
-}
-
 // ---------------------------------------------------------------------
-//  Long-press drag: onto the canvas it adds a tile, onto a folder of the
-//  tree it moves the file/folder there.
+//  Long-press drag onto the canvas: over a tile it mixes the entry into
+//  that tile; over empty space or the fixed "new tile" zone it adds a
+//  tile (the zone works even when the canvas is full). Dropping back on
+//  the sidebar does nothing.
 // ---------------------------------------------------------------------
-function makeDraggable(row, scope, label) {
+function makeDraggable(row, scope) {
   let pressT = null, dragging = false, startX = 0, startY = 0, target = null;
   const ghost = document.getElementById("drag-ghost");
-  const hint = document.getElementById("drop-hint");
+  const zone = document.getElementById("new-zone");
 
   // While an actual drag is running, block native touch scrolling.
   row.addEventListener("touchmove", e => { if (dragging) e.preventDefault(); },
@@ -1077,10 +1485,10 @@ function makeDraggable(row, scope, label) {
       row._dragged = true;
       row.classList.add("dragging");
       try { row.setPointerCapture(e.pointerId); } catch (err) {}
-      ghost.textContent = label;
+      ghost.textContent = scopeLabel(scope);
       ghost.classList.remove("hidden");
       moveGhost(e.clientX, e.clientY);
-      hint.classList.add("visible");
+      zone.classList.add("visible");
       navigator.vibrate?.(30);
     }, PRESS_MS);
   });
@@ -1088,9 +1496,7 @@ function makeDraggable(row, scope, label) {
   row.addEventListener("pointermove", e => {
     if (dragging) {
       moveGhost(e.clientX, e.clientY);
-      const onSidebar = overSidebar(e.clientX);
-      hint.classList.toggle("armed", !onSidebar);
-      setTarget(onSidebar ? folderRowAt(e.clientX, e.clientY) : null);
+      setTarget(dropAt(e.clientX, e.clientY));
     } else if (pressT &&
         Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_SLOP) {
       clearTimeout(pressT); pressT = null;   // it's a scroll / swipe
@@ -1103,13 +1509,12 @@ function makeDraggable(row, scope, label) {
     dragging = false;
     row.classList.remove("dragging");
     ghost.classList.add("hidden");
-    hint.classList.remove("visible", "armed");
-    const drop = target;
+    zone.classList.remove("visible");
     setTarget(null);
-    if (e.type === "pointerup") {
-      if (!overSidebar(e.clientX)) addTile(scope, label);
-      else if (drop) fsCall("/fs/move", { src: scope, dest: drop.dataset.path },
-                            "Spostato");
+    if (e.type === "pointerup" && !overSidebar(e.clientX)) {
+      const drop = dropAt(e.clientX, e.clientY);
+      if (drop && drop !== zone) tiles.get(drop).addScope(scope);
+      else addTile([scope]);
     }
     // keep _dragged=true so the trailing click doesn't also play
     setTimeout(() => { row._dragged = false; }, 300);
@@ -1123,11 +1528,14 @@ function makeDraggable(row, scope, label) {
     target = el;
     target?.classList.add("drop-target");
   }
-  function folderRowAt(x, y) {
+  // The zone, the tile under the pointer, or null (empty space / sidebar).
+  function dropAt(x, y) {
+    if (overSidebar(x)) return null;
+    const z = zone.getBoundingClientRect();
+    if (x >= z.left && x <= z.right && y >= z.top && y <= z.bottom) return zone;
     const hit = document.elementFromPoint(x, y);
-    const r = hit && hit.closest ? hit.closest(".tree-row") : null;
-    if (!r || r === row || r.dataset.kind === "file") return null;
-    return canMove(scope, r.dataset.path) ? r : null;
+    const item = hit && hit.closest ? hit.closest(".grid-stack-item") : null;
+    return item && tiles.has(item) ? item : null;
   }
   function moveGhost(x, y) {
     ghost.style.transform = `translate(${x + 14}px, ${y - 20}px)`;
@@ -1158,15 +1566,16 @@ function pokeTopbar() {
 // ---------------------------------------------------------------------
 window.addEventListener("load", () => {
   initGrid();
+  initTrim();
   loadTree();
-  renderMosaics();
+  migrateLocal().then(refreshMosaics);
 
   document.getElementById("start-screen").addEventListener("click", () =>
-    playScope("", "Tutti i video"));
-  document.getElementById("menuBtn").addEventListener("click", () =>
-    document.getElementById("sidebar").classList.toggle("open"));
+    playScope(""));
+  document.getElementById("menuBtn").addEventListener("click", () => {
+    if (document.getElementById("sidebar").classList.toggle("open")) refreshMosaics();
+  });
   document.getElementById("closeSidebar").addEventListener("click", closeSidebar);
-  document.getElementById("manageBtn").addEventListener("click", toggleManage);
   document.getElementById("pauseBtn").addEventListener("click", togglePause);
   document.getElementById("nextBtn").addEventListener("click", nextAll);
   document.getElementById("fullscreenBtn").addEventListener("click", toggleFullscreen);

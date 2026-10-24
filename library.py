@@ -32,7 +32,7 @@ def abspath(rel):
 
 
 def invalidate():
-    """Force the next all_videos() to rescan (after a file manager change)."""
+    """Force the next all_videos() to rescan (a pick vanished from disk)."""
     with _list_lock:
         _list_cache["time"] = 0.0
 

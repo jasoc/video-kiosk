@@ -1,6 +1,6 @@
 """Video Kiosk backend — routes only.
 
-The library scan lives in library.py, the file manager in fsops.py and the
+The library scan lives in library.py, saved mosaics in mosaics.py and the
 low-res transcoder in proxy.py. The server never holds video bytes in
 memory: /video streams straight from disk with Range support.
 """
@@ -11,11 +11,12 @@ import random
 
 from flask import Flask, jsonify, request, send_from_directory
 
-import fsops
 import library
+import mosaics
 import proxy
 
 app = Flask(__name__, static_folder="static", static_url_path="")
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024   # a mosaic is a few hundred bytes
 app.logger.setLevel(logging.INFO)
 
 
@@ -40,26 +41,32 @@ def video(p):
     return send_from_directory(library.ROOT_DIR, p, conditional=True)
 
 
+def _pool(videos, target):
+    """Videos matching one scope: "" (all), an exact file, or a folder."""
+    if not target:
+        return videos
+    if target in videos:
+        return [target]
+    prefix = target + "/"
+    return [v for v in videos if v.startswith(prefix)]
+
+
 @app.route("/random")
 def random_clip():
-    target = request.args.get("target", "").strip("/")
+    # A tile can mix several scopes (repeated `target`). Pick a scope first,
+    # then a file in it, so a small folder isn't drowned by a big one.
+    targets = [t.strip("/") for t in request.args.getlist("target")] or [""]
     clip_len = max(1.0, float(request.args.get("duration", 20)))
 
     videos = library.all_videos()
-    if not target:
-        pool = videos
-    elif target in videos:
-        pool = [target]
-    else:
-        prefix = target + "/"
-        pool = [v for v in videos if v.startswith(prefix)]
-    if not pool:
+    pools = [p for p in (_pool(videos, t) for t in targets) if p]
+    if not pools:
         return jsonify({"error": "no videos"}), 404
 
-    rel = random.choice(pool)
+    rel = random.choice(random.choice(pools))
     abs_path = library.abspath(rel)
     if not os.path.isfile(abs_path):
-        # The library moved under our feet (file manager or another client).
+        # The library changed under our feet (files moved outside the app).
         library.invalidate()
         return jsonify({"error": "stale"}), 404
     dur = library.probe(abs_path)["dur"]
@@ -73,33 +80,33 @@ def random_clip():
                     "length": round(length, 2), "dur": round(dur, 2)})
 
 
-# --- file manager -----------------------------------------------------
-def _fs(fn, *args):
+# --- saved mosaics ----------------------------------------------------
+@app.get("/mosaics")
+def mosaic_list():
+    return jsonify(mosaics.list_all())
+
+
+@app.put("/mosaics/<mid>")
+def mosaic_put(mid):
     try:
-        return jsonify({"ok": True, "path": fn(*args)})
+        return jsonify(mosaics.save(mid, request.get_json(silent=True)))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except OSError as e:
-        app.logger.error("fs op failed: %s", e)
-        return jsonify({"error": "Operazione non riuscita"}), 400
+        app.logger.error("mosaic save failed: %s", e)
+        return jsonify({"error": "Salvataggio non riuscito"}), 500
 
 
-@app.post("/fs/folder")
-def fs_folder():
-    d = request.get_json(silent=True) or {}
-    return _fs(fsops.make_folder, d.get("parent", ""), d.get("name", ""))
-
-
-@app.post("/fs/rename")
-def fs_rename():
-    d = request.get_json(silent=True) or {}
-    return _fs(fsops.rename, d.get("path", ""), d.get("name", ""))
-
-
-@app.post("/fs/move")
-def fs_move():
-    d = request.get_json(silent=True) or {}
-    return _fs(fsops.move, d.get("src", ""), d.get("dest", ""))
+@app.delete("/mosaics/<mid>")
+def mosaic_delete(mid):
+    try:
+        mosaics.delete(mid)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except OSError as e:
+        app.logger.error("mosaic delete failed: %s", e)
+        return jsonify({"error": "Eliminazione non riuscita"}), 500
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

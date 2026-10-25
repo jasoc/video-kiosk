@@ -529,10 +529,10 @@ an inline script in `<head>` before the first paint). They all share the black:
 | `pellicola` | film, warm work | amber, paper text | Space Grotesk | 10–18 px |
 | `ghiaccio` | anything, quietly | cyan | Inter | 6–10 px |
 | `vetro` | professionals ("no theme") | Apple-style liquid glass: refraction (`#liquid` SVG displacement on small surfaces), gloss, specular gradient rim (`::before`), deep drop; floating drawer and tile-control islands; **adaptive**: each surface turns light/dark and takes the complementary accent of the footage under it | Geist, Geist Mono for figures and labels | 10–20 px |
-| `luci` | nude ("naked") | skin tones cocoa → peach, dim red light from above, soft red halo | Jost, Bodoni Moda italic (titles, tabs, labels) | capsules |
-| `lusso` | luxury: cigars, tailored suits, yachts | gold foil on tobacco/leather blacks, cognac glow, title as a cigar band (double rules, slow glint) | Jost, Cormorant Garamond caps | near-square |
+| `luci` | nude / erotic, as a luxury lingerie house: restraint | almost all black, one solid bordeaux only on what is "on", hairlines, no glow or gradient; ivory italic title with a short red stroke | Jost (thin spaced caps for tabs/labels), Playfair Display italic | square |
+| `lusso` | luxury: cigars, tailored suits, yachts | gold foil on tobacco/leather blacks, cognac glow, title as a cigar band (double rules, slow glint) | Cinzel (titles, tabs, labels), EB Garamond | near-square |
 | `galleria` | products, still life | black and white only, no colour | Archivo | square |
-| `retro` ("404") | the ignorant one | old website / hacker terminal, almost no colour: greys, Win95 bevels, selection by inversion, unstyled Times title with a blinking cursor | VT323, Times New Roman | square |
+| `retro` ("404") | the ignorant one | the 2004 desktop gone black and tacky: XP Royale Noir — glossy black title bars and taskbar, black candy buttons, Start-button-green selection, orange active-tab line, chrome WordArt title | Tahoma/Verdana (Noto Sans elsewhere), Libre Franklin italic | 3–6 px |
 | `rave` | hard techno (Bolgia-style) | industrial black/white, laser red, chrome fills, a laser across the panels, blackletter title that glitches and strobes | Archivo Narrow, UnifrakturCook | square |
 
 **The tokens.** Colours: `--panel*`, `--line*`, `--text*`, `--accent`, `--accent-2`,
@@ -587,6 +587,14 @@ vetro makes it a white glossy knob).
 **Videos never show browser overlays**: `noOverlays()` disables picture-in-picture and
 remote playback (cast) on every `<video>` we create, because the tablet's browser draws
 those buttons on top of the tiles and they stole taps from our controls.
+
+**Phones** (the "PHONE" block at the end of `style.css`, `max-width: 700px`, mirrored
+by `PHONE` / `isPhone()` in `script.js`): the top bar becomes a fixed, always-visible
+bar at the bottom (`--bar-h`, clear of the home indicator via `safe-area-inset-bottom`,
+`viewport-fit=cover`); `#canvas` and `#smart-stage` stop above it (the grid's cell height
+follows on resize); popovers and toasts rise above it; the drawer and the tile editor
+are full screen; starting a drag from the drawer closes it so there is a mosaic to drop
+on; tile controls shrink to 48 px. Tablet and desktop are untouched.
 
 Conventions to preserve:
 

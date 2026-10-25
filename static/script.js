@@ -1814,14 +1814,14 @@ const THEMES = [
     colors: ["#3fe0cf", "#e4f4f3", "#1e3a3f"] },
   { id: "vetro", name: "Vetro", font: '"Geist", sans-serif',
     colors: ["linear-gradient(145deg,#fff,#9fd6ff)", "rgba(255,255,255,.5)", "rgba(255,255,255,.2)"] },
-  { id: "luci", name: "Luci rosse", font: '"Bodoni Moda", serif',
-    colors: ["linear-gradient(90deg,#8a5a44,#f0c9b0)", "#c0392b", "#f3dccf"] },
-  { id: "lusso", name: "Lusso", font: '"Cormorant Garamond", serif',
+  { id: "luci", name: "Luci rosse", font: '"Playfair Display", serif',
+    colors: ["#9e0f28", "#f4ece9", "#1c0a0e"] },
+  { id: "lusso", name: "Lusso", font: '"Cinzel", serif',
     colors: ["linear-gradient(135deg,#a8822f,#f3dc9f,#a8822f)", "#8a4b22", "#f2e6cf"] },
   { id: "galleria", name: "Galleria", font: '"Archivo", sans-serif',
     colors: ["#ffffff", "#9a9a9a", "#3a3a3a"] },
-  { id: "retro", name: "404", font: '"VT323", monospace',
-    colors: ["#ffffff", "#9a9a9a", "#1c1c1c"] },
+  { id: "retro", name: "404", font: 'Tahoma, Verdana, "Noto Sans", sans-serif',
+    colors: ["linear-gradient(180deg,#8fdc4f,#2f8f12)", "linear-gradient(180deg,#3a3a3a,#0a0a0a)", "#f8b32c"] },
   { id: "rave", name: "Rave", font: '"UnifrakturCook", serif',
     colors: ["#ff1f1f", "linear-gradient(180deg,#fff,#6d6d6d)", "#000000"] },
 ];
@@ -2029,6 +2029,10 @@ function initDrawerGestures() {
     if (Date.now() - swiped < 350) { e.stopPropagation(); e.preventDefault(); }
   }, true);
 }
+
+// Phone layout (style.css, PHONE block): bottom bar, full-screen drawer.
+const PHONE = "(max-width: 700px)";
+const isPhone = () => matchMedia(PHONE).matches;
 
 function closeSidebar() { document.getElementById("sidebar").classList.remove("open"); }
 
@@ -2322,6 +2326,9 @@ function makeDraggable(card, scope) {
       card._dragged = true;
       card.classList.add("dragging");
       try { card.setPointerCapture(e.pointerId); } catch (err) {}
+      // On a phone the drawer covers the whole screen: get it out of the
+      // way so there is a mosaic to drop on.
+      if (isPhone()) closeSidebar();
       session = dragSession(scopeLabel(scope));
       session.move(e.clientX, e.clientY);
     }, PRESS_MS);

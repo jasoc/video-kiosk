@@ -163,53 +163,49 @@
   --r-btn: 12px;
 }
 
-/* Luci rosse: "naked", for nude work. Skin tones from cocoa to peach,
-   a dim red light falling from above, a soft red halo instead of hard
-   lines, the high-contrast italic serif of fashion editorials. Sensual
-   and quiet; the photos do the rest. */
+/* Luci rosse: the erotic, the way a luxury lingerie house does it —
+   restraint. Almost all black; one deep bordeaux, solid, only on what is
+   "on"; hairline lines; square, tailored corners; thin, widely spaced caps
+   for tabs and labels; an ivory italic serif title with a short red
+   stroke under it. No glow, no gradient, nothing moving. */
 :root[data-theme="luci"] {
-  --panel: #070303;
-  --panel-2: #120807;
-  --panel-3: #22110e;
-  --line: #2e1915;
-  --line-strong: #4a2a23;
-  --text: #f3dccf;
-  --text-2: #c9a08c;
-  --text-3: #7e5a4c;
-  --accent: #e3a588;
-  --accent-2: #c0392b;
-  --accent-ink: #2a120a;
-  --accent-dim: rgba(227, 165, 136, 0.14);
-  --accent-soft: rgba(50, 20, 14, 0.92);
-  --accent-fill: linear-gradient(90deg, #8a5a44, #d9a083 55%, #f0c9b0);
-  --surface: radial-gradient(120% 80% at 50% 0%, rgba(200, 30, 20, 0.14), transparent 65%), #070303;
+  --panel: #050203;
+  --panel-2: #0e0507;
+  --panel-3: #1c0a0e;
+  --line: #1f0c10;
+  --line-strong: #3a1a20;
+  --text: #f4ece9;
+  --text-2: #b49a9e;
+  --text-3: #6e5a5e;
+  --accent: #b3122e;
+  --accent-ink: #ffffff;
+  --accent-dim: rgba(179, 18, 46, 0.14);
+  --accent-soft: rgba(40, 6, 12, 0.94);
+  --accent-fill: #9e0f28;
   --font: "Jost", system-ui, sans-serif;
   --font-size: 14px;
-  --font-display: "Bodoni Moda", Didot, serif;
-  --tab-size: 17px;
-  --label-size: 14px;
-  --label-style: italic;
-  --label-spacing: 0.02em;
-  --font-title: "Bodoni Moda", Didot, serif;
-  --title-size: 64px;
+  --font-display: "Jost", system-ui, sans-serif;
+  --tab-size: 12px;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.28em;
+  --font-title: "Playfair Display", Georgia, serif;
+  --title-size: 50px;
   --title-weight: 400;
   --title-style: italic;
-  --title-spacing: -0.01em;
-  --title-fill: linear-gradient(90deg, #b07a60, #f2cdb6 50%, #d49478);
-  --title-color: transparent;
-  --title-anim: breathe 6s ease-in-out infinite;
-  --neon: 0 0 0 1px rgba(227, 165, 136, 0.45), 0 0 18px rgba(200, 30, 20, 0.35);
-  --glow: 0 0 14px rgba(200, 40, 30, 0.45);
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
-  --r-btn: 999px;
+  --title-spacing: 0;
+  --title-color: var(--text);
+  --neon: 0 0 0 1px rgba(179, 18, 46, 0.75);
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
 }
 
 /* Lusso: cigars, tailored suits, yachts. Gold foil on warm blacks of
-   tobacco and leather, a cognac glow in the panels, an engraved tailoring
-   serif in spaced capitals, nearly square corners; the start title is a
-   cigar band — gold capitals between double rules, a slow glint. */
+   tobacco and leather, a cognac glow in the panels, engraved Roman
+   capitals (Cinzel) over a book Garamond, nearly square corners; the
+   start title is a cigar band — gold capitals between double rules, a
+   slow glint. */
 :root[data-theme="lusso"] {
   --panel: #060504;
   --panel-2: #110d09;
@@ -228,18 +224,18 @@
   --surface: radial-gradient(110% 70% at 100% 100%, rgba(138, 75, 34, 0.16), transparent 60%),
              radial-gradient(90% 60% at 0% 0%, rgba(212, 175, 55, 0.06), transparent 60%),
              #060504;
-  --font: "Jost", system-ui, sans-serif;
-  --font-size: 14px;
-  --font-display: "Cormorant Garamond", Georgia, serif;
-  --tab-size: 17px;
+  --font: "EB Garamond", Georgia, serif;
+  --font-size: 16px;
+  --font-display: "Cinzel", "EB Garamond", serif;
+  --tab-size: 14px;
   --label-size: 11px;
   --label-transform: uppercase;
-  --label-spacing: 0.24em;
-  --font-label: "Jost", system-ui, sans-serif;
-  --font-title: "Cormorant Garamond", Georgia, serif;
-  --title-size: 36px;
+  --label-spacing: 0.18em;
+  --font-label: "Cinzel", "EB Garamond", serif;
+  --font-title: "Cinzel", "EB Garamond", serif;
+  --title-size: 34px;
   --title-weight: 600;
-  --title-spacing: 0.3em;
+  --title-spacing: 0.22em;
   --title-transform: uppercase;
   --title-fill: linear-gradient(110deg, #a8822f 0%, #d4af37 25%, #fff0c2 35%, #d4af37 45%,
                                 #a8822f 60%, #d4af37 80%, #fff0c2 90%, #a8822f 100%);
@@ -280,43 +276,44 @@
   --r-lg: 0;
 }
 
-/* 404: the ignorant one. An old website, a hacker's terminal, a page
-   whose stylesheet didn't load: greys on black, a pixel terminal face, an
-   unstyled Times heading with a blinking cursor, Windows 95 bevels that
-   press in, and selection shown by inverting, like old menus. Almost no
-   colour; it should look nearly broken while working perfectly. */
+/* 404: the desktop of 2004, gone black and tacky. Windows XP's secret
+   all-black theme (Royale Noir): every floating surface is a window with
+   a glossy black title bar, the top bar a glossy black taskbar, black
+   "candy" buttons with the gradient broken at the middle and a highlight
+   on top, the glossy green of the Start button for selection, XP's
+   orange line on the active tab, Tahoma/Verdana — and a chrome WordArt
+   title with a black outline and a hard shadow. */
 :root[data-theme="retro"] {
   --panel: #000000;
-  --panel-2: #121212;
-  --panel-3: #2a2a2a;
-  --line: #3a3a3a;
-  --line-strong: #7a7a7a;
-  --text: #d6d6d6;
-  --text-2: #9a9a9a;
-  --text-3: #626262;
-  --accent: #ffffff;
-  --accent-ink: #000000;
-  --accent-dim: rgba(255, 255, 255, 0.12);
-  --accent-soft: rgba(40, 40, 40, 0.92);
-  --accent-fill: #ffffff;
-  --surface: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px), #000;
-  --scrim: rgba(0, 0, 0, 0.88);
-  --font: "VT323", "Courier New", monospace;
-  --font-size: 19px;
-  --font-display: "VT323", "Courier New", monospace;
-  --font-mono: "VT323", "Courier New", monospace;
-  --tab-size: 21px;
-  --label-size: 18px;
-  --label-transform: uppercase;
-  --font-title: "Times New Roman", Times, serif;
-  --title-size: 44px;
-  --title-weight: 700;
-  --title-spacing: 0;
-  --title-color: #ffffff;
-  --glow: 0 0 4px rgba(255, 255, 255, 0.45);
-  --r-sm: 0;
-  --r-md: 0;
-  --r-lg: 0;
+  --panel-2: #0d0d0d;
+  --panel-3: #1d1d1d;
+  --line: #000000;
+  --line-strong: #3a3a3a;
+  --text: #f0f0f0;
+  --text-2: #a8a8a8;
+  --text-3: #666666;
+  --accent: #7ccf39;
+  --accent-ink: #ffffff;
+  --accent-dim: rgba(124, 207, 57, 0.18);
+  --accent-soft: rgba(15, 40, 5, 0.94);
+  --accent-fill: linear-gradient(180deg, #8fdc4f 0%, #4fae22 48%, #2f8f12 52%, #3d9e19 100%);
+  --surface: linear-gradient(180deg, #3c3c3c 0, #141414 26px, #050505 26px, #000 100%);
+  --scrim: linear-gradient(180deg, rgba(40, 40, 40, 0.95), rgba(0, 0, 0, 0.97));
+  --font: Tahoma, Verdana, "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --font-display: Tahoma, Verdana, "Noto Sans", sans-serif;
+  --label-size: 12px;
+  --font-title: "Libre Franklin", Tahoma, sans-serif;
+  --title-size: 50px;
+  --title-weight: 800;
+  --title-style: italic;
+  --title-spacing: -0.02em;
+  --title-fill: linear-gradient(180deg, #ffffff 0%, #d9d9d9 45%, #8a8a8a 50%, #e6e6e6 75%, #ffffff 100%);
+  --title-color: transparent;
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 28px rgba(0, 0, 0, 0.8);
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
 }
 
 /* Rave: hard techno in a club like the Bolgia. Industrial black and
@@ -1574,7 +1571,17 @@ input[type="range"]::-moz-range-thumb {
 /* A gradient-painted title can't carry a text-shadow (it would show
    through the transparent text). */
 :root[data-theme="lusso"] .start-inner h1,
-:root[data-theme="luci"] .start-inner h1 { text-shadow: none; }
+:root[data-theme="retro"] .start-inner h1 { text-shadow: none; }
+
+/* Luci rosse: a short red stroke under the title. */
+:root[data-theme="luci"] .start-inner h1::after {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 1px;
+  margin: 14px auto 0;
+  background: var(--accent);
+}
 
 /* Lusso: the title is a cigar band. */
 :root[data-theme="lusso"] .start-inner h1 {
@@ -1583,25 +1590,37 @@ input[type="range"]::-moz-range-thumb {
   border-bottom: 3px double var(--accent);
 }
 
-/* 404: an unstyled heading with a blinking cursor, bevelled buttons that
-   press in, selection by inversion. */
-:root[data-theme="retro"] .start-inner h1 { text-decoration: underline; }
-:root[data-theme="retro"] .start-inner h1::after { content: "_"; animation: blink 1s steps(1) infinite; }
+/* 404: black candy buttons (gradient broken at the middle, highlight on
+   top) that sink when pressed, a glossy black taskbar, Start-button green
+   for selection, XP's orange line on the active tab, a WordArt title. */
 :root[data-theme="retro"] :is(.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .sm-speed button,
                               .sb-icon-btn, .tree-action, .tile-scope, .pop-item, .theme-opt, .crumb) {
-  border: 2px outset #8a8a8a;
-  background: #1c1c1c;
+  border: 1px solid #000;
+  background: linear-gradient(180deg, #3a3a3a 0%, #1f1f1f 48%, #0a0a0a 52%, #141414 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: var(--text);
 }
 :root[data-theme="retro"] :is(.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .sm-speed button,
                               .sb-icon-btn, .tree-action, .tile-scope, .pop-item, .theme-opt, .crumb):active {
-  border-style: inset;
+  background: linear-gradient(180deg, #000, #121212);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9);
   transform: none;
 }
 :root[data-theme="retro"] :is(.sb-tab.active, .pop-item.active, .theme-opt.active, .dur-opt.active,
-                              .sm-speed button.active, .tile-btn.on, .ed-row.active) {
-  background: #ffffff;
-  color: #000000;
-  border-style: inset;
+                              .sm-speed button.active, .tile-btn.on, .btn.primary, .ed-row.active) {
+  background: var(--accent-fill);
+  color: #ffffff;
+  border-color: #1d5c08;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="retro"] .sb-tab.active { box-shadow: inset 0 3px 0 #f8b32c; }
+:root[data-theme="retro"] #topbar {
+  background: linear-gradient(180deg, #3a3a3a 0%, #151515 50%, #000 51%, #0b0b0b 100%);
+}
+:root[data-theme="retro"] .start-inner h1 {
+  -webkit-text-stroke: 1.5px #000;
+  filter: drop-shadow(4px 4px 0 #2f8f12) drop-shadow(2px 2px 0 #000);
 }
 
 @keyframes breathe {
@@ -1618,7 +1637,7 @@ input[type="range"]::-moz-range-thumb {
   95% { filter: brightness(3); }
   96% { filter: none; }
 }
-@keyframes blink { 50% { opacity: 0; } }
+
 /* a glint running across gold */
 @keyframes shine {
   from { background-position: 100% 0; }
@@ -1750,3 +1769,53 @@ input[type="range"]::-moz-range-thumb {
 /* Rounder tiles where the theme is round. */
 :root[data-theme="vetro"] .grid-stack-item-content,
 :root[data-theme="vetro"] .sm-cell { border-radius: var(--r-md); }
+
+/* ============ PHONE ============ */
+/* Narrow screens (keep in sync with PHONE in script.js): the top bar
+   becomes a fixed bar at the bottom, always visible and spread for the
+   thumb, clear of the home indicator; the canvas and the regia stage stop
+   above it; the drawer and the tile editor take the whole screen (a drag
+   from the drawer closes it, see makeDraggable). Ids are doubled where a
+   theme rule (e.g. vetro's floating drawer) has to be beaten. */
+@media (max-width: 700px) {
+  :root {
+    --bar-h: calc(62px + env(safe-area-inset-bottom));
+    --tile-hit: 48px;
+  }
+  #topbar#topbar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bar-h);
+    justify-content: space-between;
+    gap: 0;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 0;
+    transform: none;
+  }
+  #topbar#topbar.hidden { opacity: 1; transform: none; pointer-events: auto; }
+  #topbar .tb-group { display: contents; }
+  #topbar .tb-sep, #tb-logo { display: none; }
+
+  #canvas, #smart-stage { bottom: var(--bar-h); }
+  .pop { top: auto; bottom: calc(var(--bar-h) + 10px); transform-origin: bottom center; }
+  #toast { bottom: calc(var(--bar-h) + 14px); }
+
+  #sidebar#sidebar {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    padding-bottom: env(safe-area-inset-bottom);
+    border: none;
+    border-radius: 0;
+    transform: translateX(-100%);
+  }
+  #sidebar#sidebar.open { transform: none; }
+  .sb-tab { padding: 0 12px; }
+
+  .ed { width: 100vw; height: 100dvh; border: none; border-radius: 0; }
+  .tile-bar { padding: 0 30px; gap: 6px; }
+}

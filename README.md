@@ -123,7 +123,8 @@ The app never modifies the video library: organise your files outside of it.
   the background or is cached on disk. Caches only metadata in memory, never video
   bytes.
 - **Frontend** — vanilla HTML/CSS/JS (`static/`). GridStack lays the mosaic out; moving,
-  resizing and everything else is hand-rolled. The regia lives in `static/smart.js`.
+  resizing and everything else is hand-rolled. One file per concern under
+  `static/js/` and `static/css/`, loaded in order by `index.html` (no bundler).
 - **Image** — `python:3.12-alpine` plus `ffmpeg`.
 
 Contributors and coding agents: see [CLAUDE.md](CLAUDE.md) for the detailed design

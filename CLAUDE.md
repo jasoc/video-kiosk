@@ -41,20 +41,56 @@ a single Docker container with a host directory of videos bind-mounted into it.
 | `analysis.py` | Regia: background analysis of each video (orientation, shots, motion, brightness, colour) with ffmpeg, one JSON per file under `DATA_DIR/analysis`. |
 | `proxy.py` | ffmpeg on the server: low-res proxies for mosaics (one background worker thread) and library thumbnails. All output on disk. |
 | `static/index.html` | Full DOM skeleton. All UI elements exist up-front; JS only fills the tree, the mosaic list, and the grid. |
-| `static/script.js` | Mosaic client logic: `Tile` playback engine, GridStack management, layout presets, saved mosaics, library, drag interaction. |
-| `static/smart.js` | The regia (smart mosaic): its own stage, cells, layout tree and director. Loaded after `script.js`, whose helpers it uses (section 4.12). |
+| `static/js/` | The client, one file per concern (below). |
 | `static/logo.svg` | The logo (favicon). In the UI the same shape is an inline `<symbol id="logo">` in `index.html`, drawn in the theme's accent (`currentColor`). |
-| `static/style.css` | All styling. Dark, hairline-bordered, "enterprise minimal". |
+| `static/css/` | All styling, one file per area (below). Dark, hairline-bordered, "enterprise minimal". |
 | `Dockerfile` | `python:3.12-alpine` + `ffmpeg` (needed for `ffprobe`). |
 | `compose.yaml` | Local dev: builds the image, bind-mounts the repo for live editing. |
 | `compose-ghcr.yaml` | Production: runs `${KIOSK_IMAGE:-ghcr.io/jasoc/video-kiosk:latest}`. |
 | `.github/workflows/` | `ci.yml` (syntax checks) and `docker-publish.yml` (image channels on GHCR), see section 9. |
 
+### The client files
+
+No build step and no modules: the files in `static/js/` are **classic scripts sharing
+one global scope**, listed in `index.html` in this order. A file only *declares* things
+when it loads (constants, state, functions, classes); nothing runs until `main.js`'s
+`load` handler, so a file may call functions from a file loaded after it. Two rules
+follow: a top-level initialiser must not call into another file, and a top-level name
+must be unique across all files (a duplicate `let`/`const` stops every script after it).
+The regia keeps its state private in an IIFE (`Smart`, `Plan`).
+
+| File | Holds |
+|---|---|
+| `core.js` | Constants (`MAX_TILES`, grid size, `DURATIONS`, `ZOOMS`…) and the shared state (`grid`, `tiles`, `paused`, `libFiles`…). |
+| `layouts.js` | Layout presets (`PRESETS`, `randomSplit`) and their popover. |
+| `crop.js` | Smart crop detection (4.6). |
+| `track.js` | `Track`, the timeline widget (4.4). |
+| `tile.js` | `Tile`, the playback engine (4.1–4.3), and the small tile helpers (`tileBtn`, `stopDrag`, `noOverlays`, `paintRange`). |
+| `grid.js` | GridStack, adding/placing/removing tiles, audio, corner resize (4.7). |
+| `undo.js` | The undo stack and `restoreCanvas()` (4.10). |
+| `mosaics.js` | `api()`, saved mosaics, the localStorage migration (4.8). |
+| `controls.js` | The text prompt, global controls (pause, skip, fullscreen, toast), the top bar's auto-hide. |
+| `editor.js` | The tile editor (4.4). |
+| `home.js` | The home / start screen (4.9). |
+| `themes.js` | `THEMES`, `applyTheme()`, adaptive glass (5). |
+| `drawer.js` | Drawer gestures, `isPhone()`, `closeSidebar()`. |
+| `library.js` | The library grid (4.9). |
+| `drag.js` | Drag sessions, drop planning, moving tiles (4.9). |
+| `regia-plan.js` | `Plan`: the regia's layout planner, pure arithmetic (4.12). |
+| `regia.js` | `Smart`: the regia's stage, cells, director and panel (4.12). |
+| `main.js` | Wiring on `load`. |
+
+`static/css/` is one cascade cut in pieces, linked in this order: `themes.css` (the
+tokens), `base.css` (page, home, top bar, popover, drawer), `tiles.css`, `regia.css`,
+`controls.css` (drop slot, ghost, modals, sliders, toast), `effects.css` (THEME
+EFFECTS), `motion.css`, `phone.css`. Later files win ties, so keep new rules in the file
+of their area and the order as it is.
+
 The app does **not** organise the library: there is no file manager. Videos are moved,
 renamed and deleted outside the app (an earlier in-app file manager was removed).
 
 **UI copy is in Italian. Code, comments, and documentation are in English.** Keep this
-split — user-visible strings in `index.html` and in `script.js` (button titles, toasts,
+split — user-visible strings in `index.html` and in `static/js/` (button titles, toasts,
 preset labels) must stay Italian.
 
 ---
@@ -149,7 +185,7 @@ half-written mosaic. Request bodies are capped by `MAX_CONTENT_LENGTH`.
 
 ---
 
-## 4. Frontend architecture (`static/script.js`)
+## 4. Frontend architecture (`static/js/`)
 
 ### 4.1 The `Tile` class — the playback engine
 
@@ -371,7 +407,15 @@ every folder row (and on the library root row).
 
 This is deliberately the entire feature set (plus the regia, 4.12). Do not add modes.
 
-- **Drawer** → two tabs: **Libreria** and **Mosaici** (saved mosaics, 4.8).
+- **Home** (`#start-screen`, shown whenever nothing plays; its first tap also unlocks
+  unmuted autoplay) → «Riproduci tutto», random mosaic, open the drawer on the
+  library or the regia, fullscreen; one sideways row each of saved mosaics/regie and
+  themes; a line of library counts (`renderHome()`). Behind
+  it a ghost mosaic re-splits the screen every `HOME_BEAT` (`homeMosaic()`, CSS
+  transitions, stopped while hidden). The drawer lies under the home: opening it hides
+  the home, closing it with nothing playing brings it back (a `MutationObserver` on
+  the drawer's class, skipped mid-drag).
+- **Drawer** → tabs **Libreria**, **Mosaici** (saved mosaics, 4.8) and **Regia** (4.12).
 - **Library** → one folder at a time (`navPath`) as a grid of cards with a preview
   frame (`/thumb`, `loading="lazy"`; a folder shows its first video and a file count).
   Breadcrumbs on top; the bar's buttons play / random-mosaic the open folder.
@@ -445,7 +489,7 @@ the press as the start of a tile move and the button never fires. This applies t
 `tileBtn()`, `tilePill()`, the duration panel, the timeline track, the scope chip and
 the resize corners.
 
-### 4.12 Regia (smart mosaic) — `static/smart.js` + `analysis.py`
+### 4.12 Regia (smart mosaic) — `regia.js`, `regia-plan.js` + `analysis.py`
 
 A separate mode, deliberately **not** built on tiles, GridStack, undo or the drop
 planner. Starting it snapshots the mosaic (`canvasSnap()`), clears it (releasing its
@@ -501,7 +545,7 @@ and `smart: {sources, rhythm, density, volume}` — never the (always different)
 
 ---
 
-## 5. Styling conventions (`static/style.css`)
+## 5. Styling conventions (`static/css/`)
 
 Design language: **on pure black** (`--bg: #000` — the kiosk is an AMOLED tablet
 in a dark photo room, and black pixels are off). Solid surfaces (`--panel`,
@@ -511,12 +555,13 @@ explicitly asked to drop the "made by an LLM" look: **no box-shadows, no
 micro-labels** — except where a theme asks for an effect on purpose, and then only
 through the effect tokens (below).
 
-**Motion** (the "MOTION" block at the end of `style.css`, all themes): short and
+**Motion** (`motion.css`, all themes): short and
 physical — controls scale down when pressed, tiles and cells grow in, tile controls
 rise, popovers/dialogs/toasts settle with a slight spring, library cards cascade in
 (`--i`, set by `renderLibrary()`), the drawer moves on the iOS sheet curve. Everything
 is switched off under `prefers-reduced-motion`. Keep new motion that short and that
-purposeful; no decorative loops (the themed start titles are the one exception).
+purposeful; no decorative loops (the themed start titles and the home's ghost mosaic
+with its beating logo are the exceptions — they run only while the home shows).
 
 **Nine themes**, one per kind of shoot the studio shows off (the kiosk is a showcase
 of the studio's work before production), picked per device from the drawer header
@@ -547,9 +592,9 @@ active things), `--glow` (accented text). Every token has a neutral default in `
 (shadows default to `0 0 #0000`, a shadow that draws nothing, so they can be combined in
 one `box-shadow` list); a theme sets only what it changes.
 
-**Where they apply.** Rules throughout the file read the colour/type/shape tokens. The
-effects, surfaces, capsules and title/label styles are applied in **one** block, "THEME
-EFFECTS", at the end of `style.css`; never put a blur, a shadow, a glow or a theme
+**Where they apply.** Rules in every stylesheet read the colour/type/shape tokens. The
+effects, surfaces, capsules and title/label styles are applied in **one** file,
+`effects.css` ("THEME EFFECTS"); never put a blur, a shadow, a glow or a theme
 selector anywhere else (the only `:root[data-theme=…]` rules outside the token blocks
 live there too). Blur is not applied to controls *inside* a blurred surface (nested
 backdrop filters see nothing). `vetro` costs GPU time on a tablet that is also decoding
@@ -560,7 +605,7 @@ blur so browsers that can't render an SVG backdrop keep the blur. It is applied 
 small surfaces (topbar, tile controls, popovers, toasts, regia bar): over the drawer or
 a dialog it would re-render a displacement over half a screen of playing video.
 
-**Adaptive glass** (`syncGlass()` / `glassTick()` in `script.js`, only while `vetro` is
+**Adaptive glass** (`syncGlass()` / `glassTick()` in `themes.js`, only while `vetro` is
 active): every 500 ms each visible floating surface (`GLASS_SURFACES`) draws the
 `video.front` elements under it into a 32×18 canvas (mapping object-fit, counting
 uncovered area as black) and averages the colour. Over bright footage it switches to
@@ -572,7 +617,7 @@ registered with `@property` so they fade. Leaving the theme removes every inline
 
 Never hardcode a colour, a font, a radius or an effect at a call site; a new token
 needs a neutral default in `:root`. Only theme-neutral black veils (`rgba(0,0,0,…)`)
-are written inline. `THEMES` in `script.js` repeats three colours per theme for the
+are written inline. `THEMES` in `themes.js` repeats three colours per theme for the
 picker's swatches only (keep it in sync when adding a theme).
 
 **Text colour on surfaces.** Children inherit the *computed* `color`, so every floating
@@ -588,8 +633,8 @@ vetro makes it a white glossy knob).
 remote playback (cast) on every `<video>` we create, because the tablet's browser draws
 those buttons on top of the tiles and they stole taps from our controls.
 
-**Phones** (the "PHONE" block at the end of `style.css`, `max-width: 700px`, mirrored
-by `PHONE` / `isPhone()` in `script.js`): the top bar becomes a fixed, always-visible
+**Phones** (`phone.css`, `max-width: 700px`, mirrored
+by `PHONE` / `isPhone()` in `drawer.js`): the top bar becomes a fixed, always-visible
 bar at the bottom (`--bar-h`, clear of the home indicator via `safe-area-inset-bottom`,
 `viewport-fit=cover`); `#canvas` and `#smart-stage` stop above it (the grid's cell height
 follows on resize); popovers and toasts rise above it; the drawer and the tile editor

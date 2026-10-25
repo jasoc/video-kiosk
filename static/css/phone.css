@@ -1,0 +1,49 @@
+/* ============ PHONE ============ */
+/* Narrow screens (keep in sync with PHONE in js/drawer.js): the top bar
+   becomes a fixed bar at the bottom, always visible and spread for the
+   thumb, clear of the home indicator; the canvas and the regia stage stop
+   above it; the drawer and the tile editor take the whole screen (a drag
+   from the drawer closes it, see makeDraggable). Ids are doubled where a
+   theme rule (e.g. vetro's floating drawer) has to be beaten. */
+@media (max-width: 700px) {
+  :root {
+    --bar-h: calc(62px + env(safe-area-inset-bottom));
+    --tile-hit: 48px;
+  }
+  #topbar#topbar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bar-h);
+    justify-content: space-between;
+    gap: 0;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 0;
+    transform: none;
+  }
+  #topbar#topbar.hidden { opacity: 1; transform: none; pointer-events: auto; }
+  #topbar .tb-group { display: contents; }
+  #topbar .tb-sep, #tb-logo { display: none; }
+
+  #canvas, #smart-stage { bottom: var(--bar-h); }
+  .pop { top: auto; bottom: calc(var(--bar-h) + 10px); transform-origin: bottom center; }
+  #toast { bottom: calc(var(--bar-h) + 14px); }
+
+  #sidebar#sidebar {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    padding-bottom: env(safe-area-inset-bottom);
+    border: none;
+    border-radius: 0;
+    transform: translateX(-100%);
+  }
+  #sidebar#sidebar.open { transform: none; }
+  .sb-tab { padding: 0 12px; }
+
+  .ed { width: 100vw; height: 100dvh; border: none; border-radius: 0; }
+  .tile-bar { padding: 0 30px; gap: 6px; }
+}

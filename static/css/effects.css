@@ -1,0 +1,229 @@
+/* ============ THEME EFFECTS ============ */
+/* The only place where surfaces, effects and type styles of the themes
+   are applied. With the neutral defaults this whole block changes
+   nothing. */
+
+/* Floating surfaces: a lens in "vetro", a velvet light in "luci", plain
+   elsewhere. Blur is not applied to the controls inside them: nested
+   backdrop filters see nothing behind. */
+#topbar, .pop, #sidebar, .tile-durs, .modal, .ed, #toast, .sm-stagebar, .sm-pill {
+  background: var(--surface);
+}
+/* Each surface states its text colour: children inherit the *computed*
+   colour, so without this a --text adapted on the surface (vetro) would
+   never reach text that has no colour rule of its own. */
+#topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed, #toast,
+.sm-stagebar, .sm-pill {
+  color: var(--text);
+}
+#topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed, #toast,
+.sm-stagebar, .sm-pill, #drag-ghost, #drop-slot {
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--sheen);
+}
+
+/* Controls: capsules where the theme wants them, a glass rim in "vetro",
+   neon tubes in "luci" when accented or active. */
+.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .crumb, .dur-opt, .sm-speed,
+.sm-speed button, .sb-icon-btn, .tree-action, .tile-scope, .pop-item,
+.ed-scope, .modal input, .theme-opt {
+  border-radius: var(--r-btn);
+}
+.tile-btn, .tile-pill, .tile-scope, .btn.ghost, .ed-scope, .theme-opt, .sm-speed {
+  box-shadow: var(--sheen-sm);
+}
+.sb-tab.active, .pop-item.active, .theme-opt.active, .btn.primary,
+.tile-btn.on, .dur-opt.active, .tl-h, #drop-slot, .tile-scope,
+.sm-speed button.active, .sm-bar > div {
+  box-shadow: var(--neon), var(--sheen-sm);
+}
+.tile-scope, .sb-tab.active, .pop-item.active, .crumb.here, .ed-h, .ed-cut, .tb-btn.on {
+  text-shadow: var(--glow);
+}
+
+/* Type. */
+.sb-tab, .ed-h h4, .modal h4 { font-family: var(--font-display); }
+.sb-tab { font-size: var(--tab-size); }
+.ed-label, .sb-section-h, .tile-durs-title {
+  font-family: var(--font-label);
+  font-size: var(--label-size);
+  font-style: var(--label-style);
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-spacing);
+}
+.start-inner h1 {
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  font-style: var(--title-style);
+  letter-spacing: var(--title-spacing);
+  text-transform: var(--title-transform);
+  color: var(--title-color);
+  background: var(--title-fill);
+  background-size: var(--title-fill-size);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: var(--glow);
+  animation: var(--title-anim);
+}
+/* A gradient-painted title can't carry a text-shadow (it would show
+   through the transparent text). */
+:root[data-theme="lusso"] .start-inner h1,
+:root[data-theme="retro"] .start-inner h1 { text-shadow: none; }
+
+/* Luci rosse: a short red stroke under the title. */
+:root[data-theme="luci"] .start-inner h1::after {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 1px;
+  margin: 14px auto 0;
+  background: var(--accent);
+}
+
+/* Lusso: the title is a cigar band. */
+:root[data-theme="lusso"] .start-inner h1 {
+  padding: 10px 6px 10px 26px;    /* the right side's letter-spacing balances it */
+  border-top: 3px double var(--accent);
+  border-bottom: 3px double var(--accent);
+}
+
+/* 404: black candy buttons (gradient broken at the middle, highlight on
+   top) that sink when pressed, a glossy black taskbar, Start-button green
+   for selection, XP's orange line on the active tab, a WordArt title. */
+:root[data-theme="retro"] :is(.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .sm-speed button,
+                              .sb-icon-btn, .tree-action, .tile-scope, .pop-item, .theme-opt, .crumb) {
+  border: 1px solid #000;
+  background: linear-gradient(180deg, #3a3a3a 0%, #1f1f1f 48%, #0a0a0a 52%, #141414 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+:root[data-theme="retro"] :is(.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .sm-speed button,
+                              .sb-icon-btn, .tree-action, .tile-scope, .pop-item, .theme-opt, .crumb):active {
+  background: linear-gradient(180deg, #000, #121212);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9);
+  transform: none;
+}
+:root[data-theme="retro"] :is(.sb-tab.active, .pop-item.active, .theme-opt.active, .dur-opt.active,
+                              .sm-speed button.active, .tile-btn.on, .btn.primary, .ed-row.active) {
+  background: var(--accent-fill);
+  color: #ffffff;
+  border-color: #1d5c08;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="retro"] .sb-tab.active { box-shadow: inset 0 3px 0 #f8b32c; }
+:root[data-theme="retro"] #topbar {
+  background: linear-gradient(180deg, #3a3a3a 0%, #151515 50%, #000 51%, #0b0b0b 100%);
+}
+:root[data-theme="retro"] .start-inner h1 {
+  -webkit-text-stroke: 1.5px #000;
+  filter: drop-shadow(4px 4px 0 #2f8f12) drop-shadow(2px 2px 0 #000);
+}
+
+@keyframes breathe {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+/* glitch: a red/cyan split, a jolt, a strobe flash, then nothing */
+@keyframes glitch {
+  0%, 88%, 100% { text-shadow: var(--glow); transform: none; filter: none; }
+  89% { text-shadow: -4px 0 #ff1f1f, 4px 0 #00e5ff; transform: translateX(3px) skewX(-8deg); }
+  90% { filter: brightness(4); }
+  91% { text-shadow: 4px 0 #ff1f1f, -4px 0 #00e5ff; transform: translateX(-3px); filter: none; }
+  92% { text-shadow: var(--glow); transform: none; }
+  95% { filter: brightness(3); }
+  96% { filter: none; }
+}
+
+/* a glint running across gold */
+@keyframes shine {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
+/* Adaptive glass (js/themes.js, "vetro" only) sets --text*, --accent and the
+   surface tokens on each floating surface from what is under it. Text and
+   accent fade between appearances; they are registered so they can. */
+@property --text { syntax: "<color>"; inherits: true; initial-value: #fff; }
+@property --text-2 { syntax: "<color>"; inherits: true; initial-value: #fff; }
+@property --text-3 { syntax: "<color>"; inherits: true; initial-value: #fff; }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #fff; }
+:root[data-theme="vetro"] #topbar {
+  transition: opacity 0.25s, transform 0.25s, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+:root[data-theme="vetro"] #sidebar {
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+              --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+:root[data-theme="vetro"] #sidebar.dragging { transition: none; }
+:root[data-theme="vetro"] .tile-overlay,
+:root[data-theme="vetro"] .sm-stagebar {
+  transition: opacity 0.18s, transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.15),
+              --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+:root[data-theme="vetro"] .pop,
+:root[data-theme="vetro"] #toast,
+:root[data-theme="vetro"] .sm-pill,
+:root[data-theme="vetro"] .modal,
+:root[data-theme="vetro"] .ed,
+:root[data-theme="vetro"] .tile-durs {
+  transition: --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+
+/* Figures in the theme's mono face. */
+.tl-time, .mosaic-count, .sm-cov, .ed-cut, .lib-badge, .tile-pill, .dur-opt {
+  font-family: var(--font-mono);
+}
+
+/* Vetro, the glass itself. Small surfaces refract (#liquid, an SVG
+   displacement in index.html; Chromium renders it — elsewhere the first,
+   plain declaration stays). Big ones (drawer, dialogs) only blur: a
+   displacement re-rendered over half a screen of playing video would
+   choke the tablet. */
+:root[data-theme="vetro"] #topbar,
+:root[data-theme="vetro"] .pop,
+:root[data-theme="vetro"] .tile-overlay,
+:root[data-theme="vetro"] .tile-durs,
+:root[data-theme="vetro"] #toast,
+:root[data-theme="vetro"] .sm-stagebar,
+:root[data-theme="vetro"] .sm-pill {
+  backdrop-filter: blur(14px) saturate(1.9) brightness(1.1);
+  backdrop-filter: url(#liquid) blur(5px) saturate(1.9) brightness(1.1);
+}
+/* The specular rim: a 1.5px gradient ring, brightest top-left. */
+:root[data-theme="vetro"] :is(#topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed,
+                              #toast, .sm-stagebar)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.14) 28%,
+                              rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.08) 72%,
+                              rgba(255, 255, 255, 0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+:root[data-theme="vetro"] .modal,
+:root[data-theme="vetro"] .ed { position: relative; }
+/* Floating, not docked: the drawer and the tile controls hang inside the
+   screen with air around them. */
+:root[data-theme="vetro"] #sidebar {
+  top: 10px;
+  bottom: 10px;
+  left: 10px;
+  width: min(520px, calc(92vw - 20px));
+  border: none;
+  border-radius: var(--r-lg);
+  transform: translateX(calc(-100% - 20px));
+}
+:root[data-theme="vetro"] #sidebar.open { transform: none; }
+:root[data-theme="vetro"] .tile-overlay {
+  inset: auto 8px 8px 8px;
+  border-radius: var(--r-lg);
+}

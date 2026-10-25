@@ -1,0 +1,363 @@
+/* =====================================================================
+   Video Kiosk — on pure black (AMOLED: black pixels are off). Touch
+   targets are 44px: fingers on a tablet.
+
+   Themes, picked per device (data-theme on <html>), one per kind of
+   shoot the studio shows off. They all share the black; each one sets the
+   tokens below. The flat themes leave the effect tokens at their neutral
+   defaults; the others switch them on. Every other stylesheet reads the
+   tokens; never hardcode a colour, a font, a radius or an effect. The
+   effects themselves are applied in one place: effects.css.
+
+   The stylesheets are linked in this order, which is the cascade:
+   themes (tokens) · base (page, home, top bar, popover, drawer) · tiles ·
+   regia · controls (drop slot, ghost, modals, sliders, toast) · effects
+   (THEME EFFECTS) · motion · phone.
+   ===================================================================== */
+
+/* Camera oscura (default): the darkroom safelight. Everything is red,
+   text included, so the screen never dazzles eyes used to the dark. */
+:root {
+  --bg: #000;
+  --panel: #050101;
+  --panel-2: #100303;
+  --panel-3: #1f0605;
+  --line: #2a0b09;
+  --line-strong: #44120e;
+  --text: #ffb0a6;
+  --text-2: #c56a60;
+  --text-3: #7c3a33;
+  --accent: #ff3b2e;
+  --accent-2: var(--accent);
+  --accent-ink: #1a0200;
+  --accent-dim: rgba(255, 59, 46, 0.14);
+  --accent-soft: rgba(70, 8, 4, 0.92);
+  --accent-fill: var(--accent);       /* solid accent backgrounds; may be a gradient */
+  --surface: var(--panel);            /* floating surfaces; may be a gradient */
+  --scrim: rgba(0, 0, 0, 0.8);
+  --font: "IBM Plex Mono", ui-monospace, monospace;
+  --font-size: 13px;
+  --font-display: var(--font);        /* tabs, dialog titles */
+  --font-label: var(--font-display);  /* section labels */
+  --font-mono: var(--font);           /* times, counters, durations */
+  --tab-size: 14px;
+  --label-size: 13px;
+  --label-transform: none;
+  --label-spacing: normal;
+  --label-style: normal;
+  --font-title: var(--font);          /* the start screen title */
+  --title-size: 28px;
+  --title-weight: 600;
+  --title-style: normal;
+  --title-spacing: -0.02em;
+  --title-transform: none;
+  --title-color: var(--accent);
+  --title-fill: none;                 /* a gradient here paints the title text */
+  --title-fill-size: auto;
+  --title-anim: none;
+  /* Effects: neutral by default ("0 0 #0000" is a shadow that draws
+     nothing, so these can be combined in one box-shadow list). */
+  --blur: none;                       /* backdrop-filter of floating surfaces */
+  --sheen: 0 0 #0000;                 /* box-shadow of floating surfaces */
+  --sheen-sm: 0 0 #0000;              /* box-shadow of controls */
+  --neon: 0 0 #0000;                  /* box-shadow of accented, active things */
+  --glow: 0 0 #0000;                  /* text-shadow of accented text */
+  --hit: 44px;
+  --tile-hit: 56px;                   /* controls inside tiles: bigger, for fingers */
+  --r-sm: 2px;
+  --r-md: 3px;
+  --r-lg: 4px;
+  --r-btn: var(--r-sm);               /* buttons, tabs, chips */
+}
+
+/* Pellicola: warm amber of film and tungsten, paper-coloured text,
+   soft corners. */
+:root[data-theme="pellicola"] {
+  --panel: #050403;
+  --panel-2: #0f0c06;
+  --panel-3: #1e170b;
+  --line: #262012;
+  --line-strong: #3c3119;
+  --text: #f4ead6;
+  --text-2: #b5a283;
+  --text-3: #6f624d;
+  --accent: #ffad1f;
+  --accent-ink: #1c1100;
+  --accent-dim: rgba(255, 173, 31, 0.14);
+  --accent-soft: rgba(58, 38, 4, 0.92);
+  --font: "Space Grotesk", system-ui, sans-serif;
+  --font-size: 14px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+}
+
+/* Ghiaccio: cool cyan, quiet and precise. */
+:root[data-theme="ghiaccio"] {
+  --panel: #020404;
+  --panel-2: #071111;
+  --panel-3: #0e1f1e;
+  --line: #12262a;
+  --line-strong: #1e3a3f;
+  --text: #e4f4f3;
+  --text-2: #8eaaa8;
+  --text-3: #536966;
+  --accent: #3fe0cf;
+  --accent-ink: #00201c;
+  --accent-dim: rgba(63, 224, 207, 0.13);
+  --accent-soft: rgba(4, 44, 41, 0.92);
+  --font: "Inter", system-ui, sans-serif;
+  --font-size: 14px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+}
+
+/* Vetro: liquid glass, after Apple's — the theme for professionals, where
+   "there shouldn't be a theme". Floating surfaces are a thick lens: what is
+   behind them (the videos) is refracted (#liquid, an SVG displacement),
+   lightly blurred, saturated and lifted; a specular rim runs along the
+   edge, brightest top-left; a gloss on top and a deep drop below. Every
+   surface also adapts to the footage under it (js/themes.js, adaptive glass).
+   One technical face everywhere (Geist), monospaced figures (Geist Mono).
+   The heaviest theme for the GPU. */
+:root[data-theme="vetro"] {
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel-2: rgba(255, 255, 255, 0.11);
+  --panel-3: rgba(255, 255, 255, 0.19);
+  --line: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.26);
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.74);
+  --text-3: rgba(255, 255, 255, 0.46);
+  --accent: #9fd6ff;
+  --accent-ink: #04121c;
+  --accent-dim: rgba(255, 255, 255, 0.16);
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --accent-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(214, 234, 255, 0.82));
+  --surface: radial-gradient(120% 60% at 25% -10%, rgba(255, 255, 255, 0.22), transparent 55%),
+             linear-gradient(145deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 40%,
+                             rgba(255, 255, 255, 0.02) 62%, rgba(255, 255, 255, 0.09) 100%);
+  --scrim: radial-gradient(120% 80% at 25% -20%, rgba(255, 255, 255, 0.18), transparent 60%),
+           linear-gradient(180deg, rgba(20, 22, 30, 0.14), rgba(20, 22, 30, 0.34));
+  --font: "Geist", "Inter", system-ui, sans-serif;
+  --font-size: 14px;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-label: "Geist Mono", ui-monospace, monospace;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.08em;
+  --font-title: "Geist", "Inter", system-ui, sans-serif;
+  --title-size: 30px;
+  --title-weight: 600;
+  --title-spacing: -0.035em;
+  --title-color: #fff;
+  --blur: blur(16px) saturate(1.9) brightness(1.1);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+           inset 0 0 32px rgba(255, 255, 255, 0.07),
+           0 20px 50px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sheen-sm: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+              0 2px 10px rgba(0, 0, 0, 0.25);
+  --glow: 0 1px 12px rgba(255, 255, 255, 0.3);
+  --thumb: linear-gradient(180deg, #ffffff, #e9edf3);
+  --thumb-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-btn: 12px;
+}
+
+/* Luci rosse: the erotic, the way a luxury lingerie house does it —
+   restraint. Almost all black; one deep bordeaux, solid, only on what is
+   "on"; hairline lines; square, tailored corners; thin, widely spaced caps
+   for tabs and labels; an ivory italic serif title with a short red
+   stroke under it. No glow, no gradient, nothing moving. */
+:root[data-theme="luci"] {
+  --panel: #050203;
+  --panel-2: #0e0507;
+  --panel-3: #1c0a0e;
+  --line: #1f0c10;
+  --line-strong: #3a1a20;
+  --text: #f4ece9;
+  --text-2: #b49a9e;
+  --text-3: #6e5a5e;
+  --accent: #b3122e;
+  --accent-ink: #ffffff;
+  --accent-dim: rgba(179, 18, 46, 0.14);
+  --accent-soft: rgba(40, 6, 12, 0.94);
+  --accent-fill: #9e0f28;
+  --font: "Jost", system-ui, sans-serif;
+  --font-size: 14px;
+  --font-display: "Jost", system-ui, sans-serif;
+  --tab-size: 12px;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.28em;
+  --font-title: "Playfair Display", Georgia, serif;
+  --title-size: 50px;
+  --title-weight: 400;
+  --title-style: italic;
+  --title-spacing: 0;
+  --title-color: var(--text);
+  --neon: 0 0 0 1px rgba(179, 18, 46, 0.75);
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+}
+
+/* Lusso: cigars, tailored suits, yachts. Gold foil on warm blacks of
+   tobacco and leather, a cognac glow in the panels, engraved Roman
+   capitals (Cinzel) over a book Garamond, nearly square corners; the
+   start title is a cigar band — gold capitals between double rules, a
+   slow glint. */
+:root[data-theme="lusso"] {
+  --panel: #060504;
+  --panel-2: #110d09;
+  --panel-3: #21180f;
+  --line: #2c2116;
+  --line-strong: #4d3a22;
+  --text: #f2e6cf;
+  --text-2: #c2a878;
+  --text-3: #7a6447;
+  --accent: #d4af37;
+  --accent-2: #8a4b22;
+  --accent-ink: #1a1203;
+  --accent-dim: rgba(212, 175, 55, 0.13);
+  --accent-soft: rgba(40, 28, 12, 0.92);
+  --accent-fill: linear-gradient(135deg, #a8822f, #f3dc9f 48%, #c49a48 52%, #a8822f);
+  --surface: radial-gradient(110% 70% at 100% 100%, rgba(138, 75, 34, 0.16), transparent 60%),
+             radial-gradient(90% 60% at 0% 0%, rgba(212, 175, 55, 0.06), transparent 60%),
+             #060504;
+  --font: "EB Garamond", Georgia, serif;
+  --font-size: 16px;
+  --font-display: "Cinzel", "EB Garamond", serif;
+  --tab-size: 14px;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.18em;
+  --font-label: "Cinzel", "EB Garamond", serif;
+  --font-title: "Cinzel", "EB Garamond", serif;
+  --title-size: 34px;
+  --title-weight: 600;
+  --title-spacing: 0.22em;
+  --title-transform: uppercase;
+  --title-fill: linear-gradient(110deg, #a8822f 0%, #d4af37 25%, #fff0c2 35%, #d4af37 45%,
+                                #a8822f 60%, #d4af37 80%, #fff0c2 90%, #a8822f 100%);
+  --title-fill-size: 250% 100%;
+  --title-color: transparent;
+  --title-anim: shine 9s linear infinite;
+  --neon: 0 0 0 1px rgba(212, 175, 55, 0.55);
+  --r-sm: 2px;
+  --r-md: 2px;
+  --r-lg: 4px;
+}
+
+/* Galleria: product and still life. Black and white only, no colour at
+   all, a tight grotesque: the photos are the only colour on screen. */
+:root[data-theme="galleria"] {
+  --panel: #000000;
+  --panel-2: #0b0b0b;
+  --panel-3: #1c1c1c;
+  --line: #1f1f1f;
+  --line-strong: #3a3a3a;
+  --text: #ffffff;
+  --text-2: #9a9a9a;
+  --text-3: #5a5a5a;
+  --accent: #ffffff;
+  --accent-ink: #000000;
+  --accent-dim: rgba(255, 255, 255, 0.1);
+  --accent-soft: rgba(28, 28, 28, 0.92);
+  --font: "Archivo", system-ui, sans-serif;
+  --font-size: 14px;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.14em;
+  --title-size: 40px;
+  --title-weight: 800;
+  --title-spacing: -0.045em;
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+}
+
+/* 404: the desktop of 2004, gone black and tacky. Windows XP's secret
+   all-black theme (Royale Noir): every floating surface is a window with
+   a glossy black title bar, the top bar a glossy black taskbar, black
+   "candy" buttons with the gradient broken at the middle and a highlight
+   on top, the glossy green of the Start button for selection, XP's
+   orange line on the active tab, Tahoma/Verdana — and a chrome WordArt
+   title with a black outline and a hard shadow. */
+:root[data-theme="retro"] {
+  --panel: #000000;
+  --panel-2: #0d0d0d;
+  --panel-3: #1d1d1d;
+  --line: #000000;
+  --line-strong: #3a3a3a;
+  --text: #f0f0f0;
+  --text-2: #a8a8a8;
+  --text-3: #666666;
+  --accent: #7ccf39;
+  --accent-ink: #ffffff;
+  --accent-dim: rgba(124, 207, 57, 0.18);
+  --accent-soft: rgba(15, 40, 5, 0.94);
+  --accent-fill: linear-gradient(180deg, #8fdc4f 0%, #4fae22 48%, #2f8f12 52%, #3d9e19 100%);
+  --surface: linear-gradient(180deg, #3c3c3c 0, #141414 26px, #050505 26px, #000 100%);
+  --scrim: linear-gradient(180deg, rgba(40, 40, 40, 0.95), rgba(0, 0, 0, 0.97));
+  --font: Tahoma, Verdana, "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --font-display: Tahoma, Verdana, "Noto Sans", sans-serif;
+  --label-size: 12px;
+  --font-title: "Libre Franklin", Tahoma, sans-serif;
+  --title-size: 50px;
+  --title-weight: 800;
+  --title-style: italic;
+  --title-spacing: -0.02em;
+  --title-fill: linear-gradient(180deg, #ffffff 0%, #d9d9d9 45%, #8a8a8a 50%, #e6e6e6 75%, #ffffff 100%);
+  --title-color: transparent;
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 28px rgba(0, 0, 0, 0.8);
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+}
+
+/* Rave: hard techno in a club like the Bolgia. Industrial black and
+   white, one laser red, chrome on what is "on", a faint laser crossing the
+   panels, condensed caps, and a blackletter start title that glitches —
+   a red/cyan split and a strobe flash now and then. */
+:root[data-theme="rave"] {
+  --panel: #000000;
+  --panel-2: #0a0a0a;
+  --panel-3: #191919;
+  --line: #222222;
+  --line-strong: #3d3d3d;
+  --text: #f2f2f2;
+  --text-2: #9c9c9c;
+  --text-3: #5a5a5a;
+  --accent: #ff1f1f;
+  --accent-2: #ffffff;
+  --accent-ink: #000000;
+  --accent-dim: rgba(255, 31, 31, 0.14);
+  --accent-soft: rgba(40, 0, 0, 0.92);
+  --accent-fill: linear-gradient(180deg, #ffffff, #9a9a9a 45%, #e8e8e8 55%, #6d6d6d);
+  --surface: linear-gradient(115deg, transparent 48%, rgba(255, 31, 31, 0.1) 49%, transparent 50%),
+             radial-gradient(80% 60% at 50% 120%, rgba(255, 255, 255, 0.06), transparent 60%),
+             #000;
+  --font: "Archivo Narrow", "Archivo", sans-serif;
+  --font-size: 15px;
+  --font-display: "Archivo Narrow", "Archivo", sans-serif;
+  --tab-size: 16px;
+  --label-size: 12px;
+  --label-transform: uppercase;
+  --label-spacing: 0.2em;
+  --font-title: "UnifrakturCook", "Archivo Narrow", serif;
+  --title-size: 64px;
+  --title-weight: 700;
+  --title-spacing: 0;
+  --title-color: #ffffff;
+  --title-anim: glitch 3.2s infinite;
+  --neon: 0 0 0 1px #ff1f1f, 0 0 14px rgba(255, 31, 31, 0.6);
+  --glow: 0 0 8px rgba(255, 31, 31, 0.7);
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+}

@@ -12,10 +12,35 @@
   </script>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/tiles.css">
+  <link rel="stylesheet" href="css/regia.css">
+  <link rel="stylesheet" href="css/controls.css">
+  <link rel="stylesheet" href="css/effects.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <link rel="stylesheet" href="css/phone.css">
   <script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.min.js"></script>
-  <script src="script.js" defer></script>
-  <script src="smart.js" defer></script>
+  <!-- Classic scripts sharing one global scope, in dependency order
+       (CLAUDE.md, section 2). main.js starts everything on load. -->
+  <script src="js/core.js" defer></script>
+  <script src="js/layouts.js" defer></script>
+  <script src="js/crop.js" defer></script>
+  <script src="js/track.js" defer></script>
+  <script src="js/tile.js" defer></script>
+  <script src="js/grid.js" defer></script>
+  <script src="js/undo.js" defer></script>
+  <script src="js/mosaics.js" defer></script>
+  <script src="js/controls.js" defer></script>
+  <script src="js/editor.js" defer></script>
+  <script src="js/home.js" defer></script>
+  <script src="js/themes.js" defer></script>
+  <script src="js/drawer.js" defer></script>
+  <script src="js/library.js" defer></script>
+  <script src="js/drag.js" defer></script>
+  <script src="js/regia-plan.js" defer></script>
+  <script src="js/regia.js" defer></script>
+  <script src="js/main.js" defer></script>
 </head>
 <body>
 
@@ -28,7 +53,7 @@
       <rect x="21" y="17" width="6" height="10" rx="2.5" fill="currentColor" opacity="0.55"/>
     </symbol>
     <!-- Vetro: the refraction of liquid glass, a low-frequency displacement
-         of what is behind a surface (used by backdrop-filter in style.css) -->
+         of what is behind a surface (used by backdrop-filter in css/effects.css) -->
     <filter id="liquid" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
       <feTurbulence type="fractalNoise" baseFrequency="0.007 0.011" numOctaves="2" seed="7" result="noise"/>
       <feGaussianBlur in="noise" stdDeviation="2.5" result="soft"/>
@@ -38,11 +63,29 @@
 
   <!-- Start / idle overlay (also provides the user gesture for unmuted autoplay) -->
   <div id="start-screen">
+    <!-- a ghost mosaic that keeps re-arranging itself behind the home -->
+    <div id="start-bg" aria-hidden="true"></div>
     <div class="start-inner">
       <svg class="logo start-logo" viewBox="0 0 32 32" aria-hidden="true"><use href="#logo"/></svg>
       <h1>Video Kiosk</h1>
-      <p>Tocca per iniziare</p>
-      <span class="start-sub">Tieni premuto un elemento della libreria e trascinalo per comporre un mosaico</span>
+      <div class="home-actions">
+        <button id="homePlay" class="btn primary home-play">
+          <span class="material-icons-round">play_arrow</span>Riproduci tutto
+        </button>
+        <button id="homeMosaic" class="btn ghost"><span class="material-icons-round">auto_awesome_mosaic</span>Mosaico casuale</button>
+        <button id="homeLib" class="btn ghost"><span class="material-icons-round">video_library</span>Libreria</button>
+        <button id="homeSmart" class="btn ghost"><span class="material-icons-round">auto_awesome</span>Regia</button>
+        <button id="homeFull" class="btn ghost" title="Schermo intero"><span class="material-icons-round">fullscreen</span></button>
+      </div>
+      <section class="home-sec hidden" id="homeMosaicsSec">
+        <h2 class="sb-section-h">Mosaici e regie</h2>
+        <div class="home-row" id="homeMosaics"></div>
+      </section>
+      <section class="home-sec">
+        <h2 class="sb-section-h">Tema</h2>
+        <div class="home-row" id="homeThemes"></div>
+      </section>
+      <span class="start-sub" id="homeStats">Tieni premuto un elemento della libreria e trascinalo per comporre un mosaico</span>
     </div>
   </div>
 
@@ -170,7 +213,7 @@
     <div class="grid-stack" id="grid"></div>
   </main>
 
-  <!-- Regia: the smart mosaic's own stage (static/smart.js) -->
+  <!-- Regia: the smart mosaic's own stage (js/regia.js) -->
   <div id="smart-stage" class="hidden">
     <div id="smWait" class="sm-wait hidden">
       <span class="material-icons-round">insights</span>

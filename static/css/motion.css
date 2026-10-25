@@ -1,0 +1,52 @@
+/* ============ MOTION ============ */
+/* Short and physical: things press, rise and settle. All of it goes away
+   for people who asked their system for reduced motion. */
+.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .pop-item, .theme-opt,
+.tile-scope, .crumb, .sb-icon-btn, .tree-action, .sm-speed button {
+  transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.2), background-color 0.15s, color 0.15s;
+}
+.tb-btn:active, .tile-btn:active, .tile-pill:active, .btn:active, .sb-tab:active,
+.dur-opt:active, .pop-item:active, .theme-opt:active, .tile-scope:active, .crumb:active,
+.sb-icon-btn:active, .tree-action:active, .sm-speed button:active { transform: scale(0.93); }
+.lib-card, .mosaic-row, .ed-row { transition: transform 0.14s ease, background-color 0.15s; }
+.lib-card:active, .mosaic-row:active, .ed-row:active { transform: scale(0.97); }
+
+.grid-stack-item-content, .sm-cell.in { animation: tile-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.12); }
+.pop { animation: pop-in 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2); transform-origin: top center; }
+.modal-wrap { animation: fade-in 0.2s ease; }
+.modal, .ed { animation: sheet-in 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+#toast { animation: toast-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.theme-bar, .sb-panel { animation: rise-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.lib-card { animation: rise-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+            animation-delay: calc(var(--i, 0) * 18ms); }
+/* the home comes in piece by piece; its ghost mosaic fades up behind */
+.start-inner > * { animation: rise-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) backwards; }
+.start-inner > :nth-child(2) { animation-delay: 60ms; }
+.start-inner > :nth-child(3) { animation-delay: 120ms; }
+.start-inner > :nth-child(4) { animation-delay: 180ms; }
+.start-inner > :nth-child(5) { animation-delay: 240ms; }
+.start-inner > :nth-child(6) { animation-delay: 300ms; }
+.start-inner > :nth-child(7) { animation-delay: 360ms; }
+#start-bg { animation: fade-in 2.4s ease backwards; }
+.start-logo { animation: rise-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) backwards, logo-beat 3.2s ease-in-out 0.6s infinite; }
+@keyframes logo-beat { 50% { transform: scale(1.06); } }
+/* nothing loops behind a hidden home; coming back replays the entrance */
+#start-screen.hidden * { animation: none; }
+
+@keyframes tile-in { from { opacity: 0; transform: scale(0.92); } }
+@keyframes pop-in { from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.96); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(18px) scale(0.97); } }
+@keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(16px); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Rounder tiles where the theme is round. */
+:root[data-theme="vetro"] .grid-stack-item-content,
+:root[data-theme="vetro"] .sm-cell { border-radius: var(--r-md); }

@@ -8,7 +8,7 @@ name: Build and Push Container
 # sha-<short> is only ever the branch build: a release tag rebuilds the same commit with its
 # version as a label, and must not repoint the sha tag away from the image that was tried.
 # compose-ghcr.yaml defaults KIOSK_IMAGE to :latest; a test kiosk sets :edge.
-# Nothing is pushed unless the whole CI (syntax checks, Trivy) passes on the same commit.
+# Nothing is pushed unless the whole CI (syntax checks) passes on the same commit.
 
 on:
   push:

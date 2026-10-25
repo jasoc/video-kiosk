@@ -47,8 +47,7 @@ a single Docker container with a host directory of videos bind-mounted into it.
 | `Dockerfile` | `python:3.12-alpine` + `ffmpeg` (needed for `ffprobe`). |
 | `compose.yaml` | Local dev: builds the image, bind-mounts the repo for live editing. |
 | `compose-ghcr.yaml` | Production: runs `${KIOSK_IMAGE:-ghcr.io/jasoc/video-kiosk:latest}`. |
-| `.github/workflows/` | `ci.yml` (syntax checks + Trivy) and `docker-publish.yml` (image channels on GHCR), see section 9. |
-| `.trivyignore.yaml` | Trivy findings accepted on purpose, each with its reason. |
+| `.github/workflows/` | `ci.yml` (syntax checks) and `docker-publish.yml` (image channels on GHCR), see section 9. |
 
 The app does **not** organise the library: there is no file manager. Videos are moved,
 renamed and deleted outside the app (an earlier in-app file manager was removed).
@@ -643,9 +642,8 @@ channels — iterating never needs a version:
 | tag `vX.Y.Z` | `X.Y.Z`, `X.Y`, `X` (not for `v0.*`), `latest` | **a release — only this moves `latest`**, and only when the owner says so |
 | tag `vX.Y.Z-rc.N` | `X.Y.Z-rc.N` | pre-release, `latest` stays |
 
-Nothing is pushed unless `ci.yml` passes on the same commit: Python compiles, JS parses,
-Trivy finds no fixable HIGH/CRITICAL issue in the repo or the image (accepted findings
-go in `.trivyignore.yaml`, with a reason). Consecutive pushes cancel each other
+Nothing is pushed unless `ci.yml` passes on the same commit: Python compiles, JS parses.
+(Unlike `lodge`, no Trivy scan — dropped on purpose by the owner.) Consecutive pushes cancel each other
 (`concurrency`). The image carries `org.opencontainers.image.version` from
 `git describe` (`1.3.0`, `1.2.0-5-gabc1234`, or a bare sha before the first tag).
 

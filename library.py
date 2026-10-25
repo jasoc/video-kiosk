@@ -18,7 +18,7 @@ ROOT_DIR = os.path.abspath(os.environ.get("VIDEOS_DIR", "/app/videos"))
 VIDEO_EXT = (".mp4", ".mov", ".webm", ".avi", ".mkv")
 
 LIST_TTL = 30.0
-_list_cache = {"time": 0.0, "videos": []}
+_list_cache = {"time": 0.0, "videos": [], "set": frozenset()}
 _list_lock = threading.Lock()
 
 # {abspath: {"dur", "width", "height"}} — ffprobe spawns a subprocess, so
@@ -52,7 +52,16 @@ def all_videos():
     with _list_lock:
         _list_cache["time"] = time.monotonic()
         _list_cache["videos"] = videos
+        _list_cache["set"] = frozenset(videos)
     return videos
+
+
+def is_video(rel):
+    """True if `rel` is a video of the library. Use it before turning a
+    client-supplied path into a filesystem path."""
+    all_videos()
+    with _list_lock:
+        return rel in _list_cache["set"]
 
 
 def probe(path):

@@ -32,6 +32,12 @@
     </div>
     <div class="tb-sep"></div>
     <div class="tb-group">
+      <button id="undoBtn" class="tb-btn" title="Annulla l'ultima modifica">
+        <span class="material-icons-round">undo</span>
+      </button>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="tb-group">
       <button id="layoutBtn" class="tb-btn" title="Layout">
         <span class="material-icons-round">dashboard</span>
       </button>
@@ -40,6 +46,9 @@
       </button>
       <button id="nextBtn" class="tb-btn" title="Prossima clip">
         <span class="material-icons-round">skip_next</span>
+      </button>
+      <button id="audioBtn" class="tb-btn" title="Audio del mosaico">
+        <span class="material-icons-round">volume_off</span>
       </button>
       <button id="fullscreenBtn" class="tb-btn" title="Schermo intero">
         <span class="material-icons-round">fullscreen</span>
@@ -50,26 +59,39 @@
   <!-- Layout presets popover -->
   <div id="layout-pop" class="pop hidden"></div>
 
-  <!-- Library drawer -->
+  <!-- Drawer: library (folder grid with previews) and saved mosaics -->
   <aside id="sidebar">
     <header class="sb-header">
-      <h3>Video Kiosk</h3>
-      <button id="closeSidebar" class="tb-btn"><span class="material-icons-round">close</span></button>
+      <div class="sb-tabs" role="tablist">
+        <button class="sb-tab active" data-tab="lib">Libreria</button>
+        <button class="sb-tab" data-tab="mos">Mosaici</button>
+      </div>
+      <button id="closeSidebar" class="tb-btn" title="Chiudi"><span class="material-icons-round">close</span></button>
     </header>
 
-    <div class="sb-section-h">
-      <span>Libreria</span>
-    </div>
-    <p class="sb-hint">Tocca per riprodurre &middot; tieni premuto e trascina: su un video del mosaico per mescolarli, nello spazio vuoto o su &laquo;Nuovo tassello&raquo; per aggiungerne uno</p>
-    <div id="library"></div>
+    <section id="tab-lib" class="sb-panel">
+      <div class="lib-bar">
+        <nav id="crumbs" class="crumbs"></nav>
+        <button id="libPlay" class="sb-icon-btn" title="Riproduci questa cartella">
+          <span class="material-icons-round">play_arrow</span>
+        </button>
+        <button id="libMosaic" class="sb-icon-btn" title="Mosaico casuale da questa cartella">
+          <span class="material-icons-round">auto_awesome_mosaic</span>
+        </button>
+      </div>
+      <p class="sb-hint">Tocca una cartella per aprirla, un video per riprodurlo &middot; tieni premuto e trascina sul mosaico: al centro di un video per mescolarli, sul bordo o nello spazio vuoto per aggiungerne uno</p>
+      <div id="library" class="lib-grid"></div>
+    </section>
 
-    <div class="sb-section-h">
-      <span>Mosaici salvati</span>
-      <button id="saveMosaicBtn" class="sb-icon-btn" title="Salva il mosaico attuale">
-        <span class="material-icons-round">add</span>
-      </button>
-    </div>
-    <div id="mosaics"></div>
+    <section id="tab-mos" class="sb-panel hidden">
+      <div class="sb-section-h">
+        <span>Mosaici salvati</span>
+        <button id="saveMosaicBtn" class="sb-icon-btn" title="Salva il mosaico attuale">
+          <span class="material-icons-round">add</span>
+        </button>
+      </div>
+      <div id="mosaics"></div>
+    </section>
   </aside>
 
   <!-- Canvas -->
@@ -77,8 +99,8 @@
     <div class="grid-stack" id="grid"></div>
   </main>
 
-  <!-- Fixed drop zone: always adds a new tile, even on a full canvas -->
-  <div id="new-zone">
+  <!-- Where a dragged library entry would land as a new tile -->
+  <div id="drop-slot" class="hidden">
     <span class="material-icons-round">add_to_queue</span>
     <span>Nuovo tassello</span>
   </div>
@@ -95,25 +117,39 @@
     </div>
   </div>
 
-  <!-- Trim dialog: cut every video a tile can play -->
-  <div id="trim-modal" class="modal-wrap hidden">
-    <div class="trim">
-      <header class="trim-h">
-        <span class="material-icons-round">content_cut</span>
-        <h4 id="trimTitle"></h4>
-        <button id="trimClose" class="tb-btn" title="Chiudi"><span class="material-icons-round">close</span></button>
+  <!-- Tile editor: scopes, files, cuts, volume -->
+  <div id="edit-modal" class="modal-wrap hidden">
+    <div class="ed">
+      <header class="ed-h">
+        <span class="material-icons-round">tune</span>
+        <h4 id="edTitle"></h4>
+        <button id="edClose" class="tb-btn" title="Chiudi"><span class="material-icons-round">close</span></button>
       </header>
-      <div class="trim-body">
-        <div id="trimList" class="trim-list"></div>
-        <div class="trim-edit">
-          <video id="trimVideo" muted playsinline preload="auto"></video>
-          <div class="trim-bar">
-            <div id="trimTrack"></div>
-            <span id="trimTime" class="tl-time"></span>
-            <button id="trimReset" class="btn ghost" title="Usa tutto il video">Tutto</button>
+      <div class="ed-body">
+        <div class="ed-side">
+          <div class="ed-sec">
+            <span class="ed-label">Nel mix</span>
+            <div id="edScopes" class="ed-scopes"></div>
           </div>
-          <p id="trimFile" class="trim-file"></p>
-          <p class="sb-hint">Trascina le maniglie per scegliere la parte del video da usare</p>
+          <div class="ed-sec">
+            <span class="ed-label">Volume <span id="edVolLabel"></span></span>
+            <input id="edVolume" type="range" min="0" max="100" step="1" />
+            <button id="edAudioOn" class="btn ghost hidden">Attiva l'audio del mosaico</button>
+          </div>
+          <div class="ed-sec ed-files">
+            <span class="ed-label">Video <span id="edCount"></span></span>
+            <div id="edList" class="ed-list"></div>
+          </div>
+        </div>
+        <div class="ed-edit">
+          <video id="edVideo" muted playsinline preload="auto"></video>
+          <div class="ed-bar">
+            <div id="edTrack"></div>
+            <span id="edTime" class="tl-time"></span>
+            <button id="edReset" class="btn ghost" title="Usa tutto il video">Tutto</button>
+          </div>
+          <p id="edFile" class="ed-file"></p>
+          <p class="sb-hint">Trascina le maniglie per scegliere la parte del video da usare. Togli la spunta a un video per escluderlo.</p>
         </div>
       </div>
     </div>

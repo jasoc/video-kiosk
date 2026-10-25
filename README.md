@@ -21,7 +21,8 @@ no build step. One Docker container, one folder of videos.
   cut every video it can play, with a large preview.
 - **Duplicate** — copy a player with all its folders, settings and cuts in one tap.
 - **Mosaic mode** — long-press an item in the library and drag it onto the canvas to
-  build a split view of up to 6 videos, freely draggable and resizable (GridStack).
+  build a split view of up to 6 videos. Drag a player to move it, or onto another to mix
+  them; resize it from any corner and its neighbours make room.
 - **Layout presets** — auto, columns, rows, 2×2 and 3×2 grids. Layouts always fill the
   whole canvas, and re-flow automatically as you add or remove videos.
 - **Random mosaics** — one tap on a folder builds a mosaic with a random number of
@@ -80,18 +81,23 @@ bind-mounts the repository for live editing.
 
 | Gesture | Result |
 |---|---|
-| Tap a folder or video in the library | Plays it full-canvas as a loop of random clips |
-| Tap the mosaic icon on a folder row | Builds a random mosaic from that folder |
-| Long-press an item and drag it onto empty space or onto «Nuovo tassello» | Adds it to the mosaic (up to 6) |
-| Long-press an item and drag it onto a video in the mosaic | Mixes it into that video |
+| Tap a folder in the library | Opens it (the library is a grid of previews) |
+| Tap a video, or ▶ on a folder | Plays it full-canvas as a loop of random clips |
+| Mosaic icon in the library bar | Builds a random mosaic from the open folder |
+| Drag a player onto another | Mixes them into one |
+| Long-press an item and drag it onto empty space or the edge of a video | Previews and adds a new player there (up to 6) |
+| Long-press an item and drag it onto the middle of a video | Mixes it into that video |
 | Tap a video in the mosaic | Reveals its controls: timeline, clip length, zoom, playback mode, duplicate, skip, remove |
 | Drag the handles on a player's timeline | Restricts that video to the selected part |
-| Tap the folder chip of a player | Opens the cut dialog for every video it can play |
-| Drag a tile's corner handle | Resizes it freely |
+| Tap the chip of a player | Opens its editor: remove folders from the mix, leave videos out, cut, volume |
+| Undo button in the top bar | Takes back the last change (up to 25) |
+| Speaker button in the top bar | Turns sound on for every player in a mosaic |
+| Drag a player's corner (tap it first) | Resizes it; neighbours shrink or grow to fit |
 | Layout button in the top bar | Applies a preset layout |
-| `+` next to "Mosaici salvati" | Saves the current mosaic under a name |
+| `+` in the Mosaici tab | Saves the current mosaic under a name |
 
-Audio plays only when a single video fills the canvas; mosaic tiles are muted.
+A single video always plays with sound. A mosaic is muted unless you turn mosaic audio
+on; each player then has its own volume (in its editor).
 
 ## Configuration
 

@@ -131,6 +131,8 @@ button {
   color: var(--text-2);
 }
 .tb-btn:hover, .tb-btn:active { background: var(--panel-3); color: var(--text); }
+.tb-btn.on { color: var(--accent); }
+.tb-btn:disabled { opacity: 0.3; cursor: default; background: none; }
 
 /* ============ POPOVER ============ */
 .pop {
@@ -168,7 +170,7 @@ button {
   left: 0;
   bottom: 0;
   z-index: 350;
-  width: min(360px, 88vw);
+  width: min(520px, 92vw);
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -181,16 +183,29 @@ button {
 .sb-header {
   display: flex;
   align-items: center;
+  gap: 8px;
   height: 60px;
-  padding: 0 8px 0 18px;
+  padding: 0 8px 0 10px;
   border-bottom: 1px solid var(--line);
   flex: none;
 }
-.sb-header h3 {
-  margin: 0;
-  flex: 1;
-  font-size: 15px;
+.sb-tabs { display: flex; gap: 4px; flex: 1; }
+.sb-tab {
+  height: var(--hit);
+  padding: 0 16px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text-3);
+}
+.sb-tab:hover { color: var(--text); }
+.sb-tab.active { background: var(--panel-3); color: var(--text); }
+
+.sb-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .sb-section-h {
@@ -213,6 +228,7 @@ button {
 }
 
 .sb-icon-btn {
+  flex: none;
   display: grid;
   place-items: center;
   width: var(--hit);
@@ -222,23 +238,120 @@ button {
 }
 .sb-icon-btn:hover, .sb-icon-btn:active { background: var(--panel-3); color: var(--text); }
 
-#library {
+/* library: breadcrumb bar + grid of cards */
+.lib-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 8px 8px 8px 10px;
+}
+.crumbs {
   flex: 1;
-  min-height: 80px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.crumbs::-webkit-scrollbar { display: none; }
+.crumb {
+  flex: none;
+  height: var(--hit);
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.crumb:hover, .crumb:active { background: var(--panel-3); color: var(--text); }
+.crumb.here { color: var(--text); font-weight: 600; }
+.crumb-sep { flex: none; color: var(--text-3); }
+
+.lib-grid {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 8px 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-content: start;
+  gap: 10px;
+  padding: 0 12px 14px;
 }
+.lib-grid .sb-hint { grid-column: 1 / -1; margin: 8px 6px; }
+.lib-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.lib-card:hover, .lib-card:active { background: var(--panel-2); }
+.lib-card.dragging { background: var(--accent-dim); }
+.lib-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  color: var(--text-3);
+}
+.lib-thumb .material-icons-round { font-size: 30px; }
+.lib-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.lib-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border-radius: var(--r-sm);
+  background: var(--scrim);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.lib-badge .material-icons-round { font-size: 15px; color: var(--accent); }
+.lib-thumb .lib-play {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: var(--scrim);
+  color: var(--text);
+}
+.lib-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 2px 2px;
+  font-size: 13px;
+}
+.lib-card.dir .lib-name { font-weight: 600; }
 
 #mosaics {
-  flex: none;
-  max-height: 34vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 8px 12px;
 }
 
-.tree-row, .mosaic-row {
+.mosaic-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -247,15 +360,9 @@ button {
   border-radius: var(--r-sm);
   font-size: 14px;
   cursor: pointer;
-  touch-action: pan-y;
 }
-.tree-row:hover, .tree-row:active,
 .mosaic-row:hover, .mosaic-row:active { background: var(--panel-2); }
-.tree-row.dragging { background: var(--accent-dim); }
-.tree-row .material-icons-round,
 .mosaic-row .material-icons-round { font-size: 20px; color: var(--text-3); }
-.tree-row.root { font-weight: 600; }
-.tree-row.root .material-icons-round { color: var(--accent); }
 
 .row-name {
   overflow: hidden;
@@ -281,21 +388,6 @@ button {
   color: var(--text-3);
 }
 .tree-action:hover, .tree-action:active { background: var(--panel-3); color: var(--text); }
-
-.caret {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 36px;
-  margin-left: -8px;
-  border-radius: var(--r-sm);
-  color: var(--text-3);
-}
-.caret .material-icons-round { transition: transform 0.15s; }
-.caret.open .material-icons-round { transform: rotate(90deg); }
-
-.children { display: none; }
-.children.open { display: block; }
 
 /* ============ CANVAS / GRID ============ */
 #canvas {
@@ -323,30 +415,35 @@ button {
 }
 .grid-stack-item-content video.front { opacity: 1; }
 
-.grid-stack-placeholder > .placeholder-content {
-  background: var(--accent-dim) !important;
-  border: 1px dashed var(--accent) !important;
-  border-radius: var(--r-sm);
-}
+/* tiles are moved and resized by our own pointer code */
+.grid-stack-item { touch-action: none; }
+.grid-stack-item.lifting { opacity: 0.45; }
 
-/* bigger resize handle for touch */
-.grid-stack-item > .ui-resizable-se {
-  width: 32px;
-  height: 32px;
-  right: 4px;
-  bottom: 4px;
-  margin: 0;
-  background: none;
-  transform: none;
+/* resize corners (ours, not GridStack's): shown with the tile overlay */
+.tile-resize {
+  position: absolute;
   z-index: 30;
+  width: 34px;
+  height: 34px;
+  display: none;
+  touch-action: none;
 }
-.grid-stack-item > .ui-resizable-se::after {
+.grid-stack-item.active > .tile-resize { display: block; }
+.tile-resize::after {
   content: "";
   position: absolute;
-  inset: 8px;
-  border-right: 2px solid rgba(255, 255, 255, 0.5);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+  width: 14px;
+  height: 14px;
+  border: 0 solid var(--text);
 }
+.tile-resize.nw { left: 0; top: 0; cursor: nw-resize; }
+.tile-resize.ne { right: 0; top: 0; cursor: ne-resize; }
+.tile-resize.sw { left: 0; bottom: 0; cursor: sw-resize; }
+.tile-resize.se { right: 0; bottom: 0; cursor: se-resize; }
+.tile-resize.nw::after { left: 8px; top: 8px; border-left-width: 3px; border-top-width: 3px; }
+.tile-resize.ne::after { right: 8px; top: 8px; border-right-width: 3px; border-top-width: 3px; }
+.tile-resize.sw::after { left: 8px; bottom: 8px; border-left-width: 3px; border-bottom-width: 3px; }
+.tile-resize.se::after { right: 8px; bottom: 8px; border-right-width: 3px; border-bottom-width: 3px; }
 
 /* tile under a dragged library entry: dropping mixes it in */
 .grid-stack-item.drop-target > .grid-stack-item-content::after {
@@ -387,7 +484,7 @@ button {
   gap: 8px;
   min-width: 0;
 }
-/* scope chip: tap it to open the trim dialog */
+/* scope chip: tap it to open the tile editor */
 .tile-scope {
   flex: none;
   display: flex;
@@ -419,7 +516,8 @@ button {
   color: var(--text);
 }
 
-.tile-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+/* side padding keeps the bottom buttons clear of the resize corners */
+.tile-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 0 26px; }
 .tile-spacer { flex: 1; }
 
 .tile-btn {
@@ -450,7 +548,7 @@ button {
 }
 .tile-pill:hover, .tile-pill:active { background: var(--panel-3); }
 
-/* timeline: playhead + cut handles, in tiles and in the trim dialog */
+/* timeline: playhead + cut handles, in tiles and in the tile editor */
 .tile-tl { display: flex; align-items: center; gap: 8px; }
 .tl-track {
   position: relative;
@@ -547,34 +645,23 @@ button {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ============ NEW TILE ZONE ============ */
-/* fixed target shown while dragging: always adds a tile, even on a full
-   canvas. Bottom-right so the open sidebar never covers it. */
-#new-zone {
+/* ============ DROP SLOT ============ */
+/* preview of the new tile a dragged library entry would become */
+#drop-slot {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 360;
-  display: none;
+  z-index: 200;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 200px;
-  min-height: 80px;
-  padding: 0 24px;
-  border: 2px dashed var(--line-strong);
-  border-radius: var(--r-lg);
-  background: var(--panel);
-  color: var(--text-2);
+  justify-content: center;
+  gap: 10px;
+  border: 2px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: rgba(20, 26, 46, 0.92);
+  color: var(--accent);
   font-size: 15px;
   font-weight: 600;
   pointer-events: none;
-}
-#new-zone.visible { display: flex; }
-#new-zone.drop-target {
-  border-color: var(--accent);
-  border-style: solid;
-  background: var(--accent-dim);
-  color: var(--accent);
+  transition: left 0.15s, top 0.15s, width 0.15s, height 0.15s;
 }
 
 /* ============ DRAG GHOST ============ */
@@ -651,18 +738,18 @@ button {
 .btn.primary { background: var(--accent); color: var(--accent-ink); }
 .btn.primary:active { opacity: 0.85; }
 
-/* trim dialog: file list on the left, preview + cut on the right */
-.trim {
+/* tile editor: settings + file list on the left, preview + cut on the right */
+.ed {
   display: flex;
   flex-direction: column;
-  width: min(1000px, 94vw);
-  height: min(640px, 90vh);
+  width: min(1040px, 95vw);
+  height: min(680px, 92vh);
   background: var(--panel);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
-.trim-h {
+.ed-h {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -672,7 +759,7 @@ button {
   border-bottom: 1px solid var(--line);
   color: var(--accent);
 }
-.trim-h h4 {
+.ed-h h4 {
   flex: 1;
   margin: 0;
   overflow: hidden;
@@ -682,36 +769,77 @@ button {
   font-weight: 600;
   color: var(--text);
 }
-.trim-body { display: flex; flex: 1; min-height: 0; }
-.trim-list {
+.ed-body { display: flex; flex: 1; min-height: 0; }
+.ed-side {
   flex: none;
-  width: 300px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  width: 330px;
+  min-height: 0;
   border-right: 1px solid var(--line);
 }
-.trim-row {
+.ed-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ed-label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.ed-label span { font-weight: 400; color: var(--text-3); }
+.ed-scopes { display: flex; flex-wrap: wrap; gap: 6px; }
+.ed-scope {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 52px;
-  padding: 6px 10px;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 0 2px 0 10px;
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
-  text-align: left;
-  font-size: 14px;
+  background: var(--panel-2);
 }
-.trim-row:hover, .trim-row:active { background: var(--panel-2); }
-.trim-row.active { background: var(--accent-dim); color: var(--accent); }
-.trim-row small {
+.ed-scope:not(:has(button)) { padding-right: 12px; }
+.ed-scope .material-icons-round { font-size: 18px; color: var(--text-3); }
+.ed-sec input[type="range"] {
+  width: 100%;
+  height: var(--hit);
+  margin: 0;
+  accent-color: var(--accent);
+}
+.ed-files { flex: 1; min-height: 0; border-bottom: none; padding-bottom: 0; }
+.ed-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -6px;
+  padding-bottom: 8px;
+}
+.ed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 4px 8px 4px 2px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  cursor: pointer;
+}
+.ed-row:hover, .ed-row:active { background: var(--panel-2); }
+.ed-row.active { background: var(--accent-dim); color: var(--accent); }
+.ed-row .tree-action { color: var(--accent); }
+.ed-row.off .row-name { color: var(--text-3); text-decoration: line-through; }
+.ed-row.off .tree-action { color: var(--text-3); }
+.ed-row small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 11.5px;
   color: var(--text-3);
+  text-decoration: none;
 }
-.trim-cut {
+.ed-cut {
   flex: none;
   padding: 3px 7px;
   border-radius: var(--r-sm);
@@ -720,7 +848,7 @@ button {
   font-size: 11.5px;
   font-weight: 600;
 }
-.trim-edit {
+.ed-edit {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -728,7 +856,7 @@ button {
   gap: 10px;
   padding: 14px;
 }
-.trim-edit video {
+.ed-edit video {
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -736,8 +864,8 @@ button {
   border-radius: var(--r-sm);
   object-fit: contain;
 }
-.trim-bar { display: flex; align-items: center; gap: 12px; }
-.trim-file {
+.ed-bar { display: flex; align-items: center; gap: 12px; }
+.ed-file {
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -745,11 +873,11 @@ button {
   font-size: 13px;
   color: var(--text-2);
 }
-.trim-edit .sb-hint { margin: 0; }
+.ed-edit .sb-hint { margin: 0; }
 
-@media (max-width: 700px) {
-  .trim-body { flex-direction: column-reverse; }
-  .trim-list { width: auto; height: 38%; border-right: none; border-top: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .ed-body { flex-direction: column-reverse; }
+  .ed-side { width: auto; height: 50%; border-right: none; border-top: 1px solid var(--line); }
 }
 
 /* ============ TOAST ============ */

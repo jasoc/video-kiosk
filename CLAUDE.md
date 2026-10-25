@@ -26,8 +26,8 @@ a single Docker container with a host directory of videos bind-mounted into it.
 - **No build tooling.** Plain HTML/CSS/JS served statically, plain Flask. Do not
   introduce npm, bundlers, frameworks, or a Python dependency beyond Flask without an
   explicit request.
-- **Vanilla first.** The only third-party frontend library is GridStack (mosaic drag &
-  resize). Google Fonts + Material Icons come from a CDN.
+- **Vanilla first.** The only third-party frontend library is GridStack, used purely
+  as the mosaic's layout engine (its own drag and resize are disabled). Google Fonts + Material Icons come from a CDN.
 
 ---
 
@@ -38,7 +38,7 @@ a single Docker container with a host directory of videos bind-mounted into it.
 | `app.py` | Flask routes only (~120 lines): static files, tree, video bytes, random clip descriptors, saved mosaics. |
 | `library.py` | Library scan (`all_videos`, `build_tree`) and `ffprobe` metadata (`probe`). Owns the two metadata caches. |
 | `mosaics.py` | Saved mosaics: one JSON file per mosaic under `DATA_DIR/mosaics`, atomic writes. |
-| `proxy.py` | Background ffmpeg transcoder producing low-res proxies for mosaics. One worker thread, output on disk. |
+| `proxy.py` | ffmpeg on the server: low-res proxies for mosaics (one background worker thread) and library thumbnails. All output on disk. |
 | `static/index.html` | Full DOM skeleton. All UI elements exist up-front; JS only fills the tree, the mosaic list, and the grid. |
 | `static/script.js` | All client logic: `Tile` playback engine, GridStack management, layout presets, saved mosaics, drag interaction. |
 | `static/style.css` | All styling. Dark, hairline-bordered, "enterprise minimal". |
@@ -64,6 +64,7 @@ preset labels) must stay Italian.
 | `GET /` | `static/index.html` |
 | `GET /tree` | Nested JSON of the library: `{type: "dir"\|"file", name, path, children?}`. Empty directories are listed; dot-directories are skipped. Paths are relative to `ROOT_DIR` and always use `/` separators. |
 | `GET /video/<path>[?q=low]` | The video file, **streamed with HTTP Range support** (`conditional=True` → `206 Partial Content`). With `q=low`, a ready proxy if one exists, otherwise the original (and a proxy is queued). |
+| `GET /thumb/<path>` | A small JPEG frame of a video (10% in), for the library grid. Built on first request, cached on disk, `404` if ffmpeg fails. |
 | `GET /random?target=<path>[&target=<path>…]&duration=<sec>` | `{file, start, length, dur}` — a random video plus a random in-point. Each `target` may be `""` (whole library), a folder path, or an exact file path; with several (a mixed tile) the server picks a target first, then a file in it, so a small folder is not drowned by a big one. Targets with no videos are ignored. `404` if none matches or the pick vanished from disk, which makes the client refresh its tree. |
 | `GET /mosaics` | All saved mosaics, oldest first. |
 | `PUT /mosaics/<id>` | Creates or overwrites one mosaic (last write wins). |
@@ -105,7 +106,10 @@ not by video bytes:
 
 The same rule governs `proxy.py`: proxies are **files on disk**, produced by one
 background worker thread and served with `send_from_directory(..., conditional=True)`.
-Never buffer a transcode in memory, and never transcode inside a request.
+Never buffer a transcode in memory, and never transcode inside a request. The one
+deliberate exception is a **thumbnail**: a single-frame grab (a fraction of a second),
+built inside the `/thumb` request, at most `THUMB_JOBS` at a time (semaphore), cached
+under `PROXY_DIR/thumbs` keyed on size+mtime like proxies.
 
 Both are guarded by `threading.Lock` because Flask runs with `threaded=True`.
 
@@ -113,8 +117,10 @@ Both are guarded by `threading.Lock` because Flask runs with `threaded=True`.
 
 `/random` resolves `target` **against the cached video list** (exact match or `path/`
 prefix), never by joining user input onto the filesystem. `/video` relies on
-`send_from_directory`, which rejects traversal outside the served root. Keep both
-properties if you touch these routes.
+`send_from_directory`, which rejects traversal outside the served root. Anything that
+hands a client path to ffmpeg (`proxy.low_res()`, `proxy.thumb()`) first checks
+`library.is_video()` (a set built with the cached list). Keep these properties if you
+touch these routes.
 
 `mosaics.py` is the only module that writes to disk (besides the proxy worker). Mosaic
 ids become file names, so they are matched against `^[A-Za-z0-9_-]{1,40}$` before any
@@ -142,7 +148,7 @@ reused for the entire life of the tile** (double buffering):
 **Never create a `<video>` element per clip.** A previous version appended fresh
 `<video>` elements to preload upcoming clips and never released them, leaking browser
 memory. Element count must stay at `2 × tiles.size`, plus the one preview element of
-the trim dialog (empty while closed).
+the tile editor (empty while closed).
 
 Key members:
 
@@ -194,14 +200,14 @@ same element.
 `armTimer()` is a no-op when `v.loop` is set — don't remove that guard or natively
 looping tiles will start skipping.
 
-### 4.4 Timeline, cuts and the trim dialog
+### 4.4 Timeline, cuts and the tile editor
 
 A **cut** is the part of one file a tile uses: `ranges[file] = [from, to]`. It is per
 tile and per file, so it works for single files, folders and mixed tiles alike; files
 without a cut are used whole. A cut covering the whole file is deleted rather than
 stored, and cuts shorter than `MIN_RANGE` are refused.
 
-`Track` is the shared timeline widget (tile overlays and the trim dialog): a playhead
+`Track` is the shared timeline widget (tile overlays and the tile editor): a playhead
 plus two cut handles on raw Pointer Events with pointer capture. A press within 24 px of
 a handle grabs it, anywhere else scrubs (only if `seekable()`; tiles allow it in full
 mode only). It owns no video: it reports `onStart` / `onPreview(t)` (moves, previewed
@@ -213,16 +219,31 @@ with `fastSeek()` — keyframe-precise, cheap) / `onSeek(t)` / `onRange(range, w
 - **`Tile.setRange(file, range, dur, which)`** stores the cut. If that file is on screen
   its window is re-cut **in place** (same element, no reload); a prefetched `next` of
   the same file is discarded and re-prefetched.
-- **Trim dialog** (`openTrim()`, opened from the `.tile-scope` chip): lists every file
-  the tile can play (`tileFiles()`, computed from the tree — no server call), with one
-  big preview that loops the cut. Its single `<video>` lives in the page and is emptied
-  (`removeAttribute("src")` + `load()`) on close.
+- **Tile editor** (`openEditor()`, opened from the `.tile-scope` chip, always shown):
+  - scopes in the mix, each removable (`removeScope()`, never the last one);
+  - the tile's volume (`setVolume()`), plus a shortcut to turn mosaic audio on;
+  - every file the tile can play (`tileFiles()`, computed from the tree — no server
+    call), each with a checkbox to leave it out (`toggleSkip()` → `skip`, sent to
+    `/random` as repeated `skip`; the last playable file can't be left out) and its
+    cut badge;
+  - one big preview that loops the selected file's cut, with a `Track` to cut it.
+  Its single `<video>` lives in the page and is emptied (`removeAttribute("src")` +
+  `load()`) on close.
+- After a scope/skip change, `rescoped()` moves on if the clip on screen is no longer
+  playable, otherwise `refetch()` drops the prefetched clip. `prefetch()` carries its
+  own token (`pre`) so a newer prefetch cancels an older one, and `prepare()` settles
+  any previous load on the same element as stale (`el._done`), so two loads never race
+  on one element. `refetch()` does nothing while `advance()` is loading (`loading`).
 
 ### 4.5 Audio
 
-Audio plays only when there is exactly one tile (`updateAudio()` / the `el.muted`
-assignment in `advance()`). Six simultaneous audio tracks would be noise in a physical
-room. Unmuted autoplay requires a user gesture, which is why the start screen exists —
+A single tile always has sound. A mosaic is muted unless the user turns **mosaic
+audio** on (topbar `audioBtn`, `mosaicAudio`, remembered per device in localStorage):
+then every tile plays sound together, each at its own `volume` (tile editor, saved with
+the mosaic). `audible()` is the single rule, applied by `updateAudio()` and in
+`advance()`. Proxies are transcoded without audio, so with mosaic audio on `videoUrl()`
+asks for the originals, and turning it on reloads tiles currently on a proxy. Note that
+iOS Safari ignores `video.volume`. Unmuted autoplay requires a user gesture, which is why the start screen exists —
 the first tap both starts playback and satisfies the browser's autoplay policy.
 
 ### 4.6 Zoom modes and smart crop
@@ -242,7 +263,7 @@ A frame that is (nearly) all black tells us nothing, so `detectCrop()` returns `
 without caching and `refreshCrop()` retries a few times. Detection can be fooled by a
 genuinely dark shot; that is acceptable because the button cycles — one more tap and the
 tile is back to fill/fit. Because the transform depends on the tile's pixel size, it must
-be recomputed on resize (`reZoom()`, the `resizestop` handler and `applyLayout()`).
+be recomputed on resize (`reZoom()`, the end of a resize gesture and `applyLayout()`).
 
 ### 4.7 Grid & layout presets
 
@@ -281,6 +302,25 @@ it from the popover (or through `randomMosaic`/`loadMosaic`) — never as a side
 adding or removing a tile. `layoutFor(n)` falls back to `auto` when the active preset
 doesn't fit the tile count, or when a generator returned fewer rectangles than tiles.
 
+**Moving and resizing are ours, not GridStack's** (`disableDrag` + `disableResize`):
+GridStack pushes neighbours away, or refuses on a full grid. GridStack only lays tiles
+out; nothing may let two items overlap, or its engine pushes one away.
+
+- **Resize** (`makeResizable()`): four corner handles (`.tile-resize`, on the grid item
+  so they survive tile rebuilds, shown while the overlay is). Each moving edge acts as
+  a splitter. Growing: `fitResize()` shrinks every neighbour the tile eats into, on the
+  side facing it (a diagonal neighbour gives up the cheaper side), never below
+  `MIN_CELLS` — the tile stops instead. Shrinking: `fillGaps()` lets the neighbours that
+  touched that edge grow into the freed strip, when nothing else is in the way.
+  Everything is computed from the geometry captured at `pointerdown`, so going back and
+  forth in one gesture is lossless. `applyRects()` applies a new layout in two steps
+  (every item first shrinks to what its old and new rects share, then grows), so items
+  never overlap mid-way.
+- **Move** (`makeMovable()`): dragging a tile beyond `DRAG_SLOP` runs the same drag
+  session as a library entry (4.9), with the tile itself left out of the planning (its
+  own area counts as free): onto another tile's middle it **mixes** the two
+  (`Tile.mergeFrom()`, the dragged tile goes away), anywhere else it moves there.
+
 `addTile(scopes, opts)` accepts `opts.rect` to place a tile at an exact position
 (used by saved mosaics, random mosaics and `playScope`), bypassing `placeNew()`.
 
@@ -311,45 +351,74 @@ every folder row (and on the library root row).
 
 This is deliberately the entire feature set. Do not add modes.
 
-- **Tap** a tree row (root / folder / file) → clears the canvas, plays that scope as one
-  full-canvas tile.
-- **Mosaic button** on a folder row → random mosaic from that folder.
-- **Long-press (350 ms) + drag** a tree row onto **empty canvas** or onto the fixed
-  **«Nuovo tassello» zone** (bottom-right, shown only while dragging) → adds it as a new
-  tile. The zone exists so a new tile can be added even when the canvas is full
-  (`placeNew()` then halves a tile). Max `MAX_TILES = 6`, enforced with a toast.
-- **Long-press + drag onto an existing tile** → mixes that entry into the tile
-  (`Tile.addScope()`); the tile is highlighted with a «Mescola» veil while hovered.
+- **Drawer** → two tabs: **Libreria** and **Mosaici** (saved mosaics, 4.8).
+- **Library** → one folder at a time (`navPath`) as a grid of cards with a preview
+  frame (`/thumb`, `loading="lazy"`; a folder shows its first video and a file count).
+  Breadcrumbs on top; the bar's buttons play / random-mosaic the open folder.
+  **Tap** a folder card → opens it; its ▶ button plays it; **tap** a video card →
+  clears the canvas and plays it as one full-canvas tile.
+- **Long-press (350 ms) + drag** a library card onto the canvas. While dragging, the
+  landing spot is previewed live (`dragSession()` → `planDrop()` / `setPlan()`):
+  - **empty space** → a new tile on the biggest free rectangle under the finger
+    (`freeRectAt()`), shown as `#drop-slot`;
+  - **outer band of a tile** (`EDGE`) → that tile is really, temporarily shrunk to
+    half on the opposite side and the new tile takes the half under the finger;
+  - **middle of a tile**, or any tile once `MAX_TILES = 6` is reached → mix into it
+    (`Tile.addScope()`), with a «Mescola» veil.
+  Releasing commits; leaving the canvas or cancelling restores the shrunk tile.
 - **Long-press + drag** an entry that is already in the mosaic is fine: duplicates are
   never refused.
-- **Tap a tile** → shows its overlay for 3.5 s: scope chip (→ trim dialog, 4.4) +
+- **Drag a tile** onto another → mix them; elsewhere → move it (same preview rules).
+- **Corners of a tile** (visible with its overlay) → resize (4.7).
+- **Tap a tile** → shows its overlay for 3.5 s: scope chip (→ tile editor, 4.4) +
   filename, timeline, clip-duration pill, zoom cycle, mode toggle (shuffle ↔ repeat),
   duplicate, skip, close.
 - **Duplicate** (`duplicateTile()`) → a copy with the same scopes, settings and cuts;
   free space first, otherwise `placeNew(prefer)` splits the duplicated tile itself.
-- **Topbar** → library drawer, layout presets, pause, skip-all, fullscreen. Auto-hides
+- **Topbar** → library drawer, undo, layout presets, pause, skip-all, mosaic audio,
+  fullscreen. Auto-hides
   after 3.5 s of no pointer activity (kept visible while the drawer is open).
 
 The drag is implemented with **raw Pointer Events**, not HTML5 drag & drop (which is
-unreliable on touch). Mechanics worth knowing before touching `makeDraggable()`:
+unreliable on touch). Mechanics worth knowing before touching `makeDraggable()` /
+`makeMovable()` / `dragSession()`:
 
 - A `setTimeout(PRESS_MS)` arms the drag; pointer movement beyond `DRAG_SLOP` (12 px)
-  before it fires cancels it, so scrolling the tree never turns into a drag.
-- `row._dragged` swallows the `click` that the browser emits after the drag, so
+  before it fires cancels it, so scrolling the library never turns into a drag. Tiles
+  need no long press: moving beyond `DRAG_SLOP` starts the drag, less is a tap.
+- `card._dragged` / `item._dragged` swallow the `click` that the browser emits after the drag, so
   dropping a row doesn't also trigger "play this scope". It is cleared 300 ms later.
-- `dropAt()` resolves the target: the zone (by bounding rect, it has
-  `pointer-events: none`), the `.grid-stack-item` under the pointer
-  (`elementFromPoint`), or `null` for empty space. The current target gets
-  `.drop-target`. Dropping back over the open sidebar does nothing.
-- `touchmove` is `preventDefault`ed **only while dragging**, so the tree still scrolls.
+- Plans are computed against `base`, the geometry captured when the drag armed —
+  never against the live DOM, which the preview itself is changing (that would make
+  the plan flicker). Only one preview is applied at a time; `setPlan()` undoes the
+  previous one first. Dropping back over the open sidebar does nothing.
+- `touchmove` is `preventDefault`ed **only while dragging**, so the library still scrolls.
 
-### 4.10 GridStack event conflicts
+### 4.10 Undo
+
+`undoStack` holds up to `UNDO_MAX` entries `{label, undo}`; the topbar `undoBtn` pops
+one. Two kinds:
+
+- **Canvas edits** call `remember(label)` *before* changing anything (or pass a snapshot
+  taken earlier, as `dragSession()` and `makeResizable()` do). The snapshot is
+  `canvasSnap()` = preset + `snapshotTiles()`, the same shape a saved mosaic has.
+  `restoreCanvas()` puts it back disturbing as little as possible: tiles are matched by
+  list position, extra trailing tiles are removed, tiles with the same content are
+  `retune()`d in place (zoom, volume, cuts — they keep playing), changed ones are
+  rebuilt on a fresh content element, missing ones are added.
+- **Saved-mosaic edits** (save, update, rename, delete) push a closure that writes the
+  previous server copy back (or deletes the new one).
+
+Anything that changes the canvas must call `remember()` first. Skip, pause and library
+navigation are not undoable.
+
+### 4.11 Controls inside tiles
 
 Any interactive control living **inside** a tile must call `stopDrag(el)`, which stops
-`pointerdown`/`mousedown`/`touchstart` propagation. Otherwise GridStack interprets the
-press as the start of a tile drag and the button never fires. This applies to
-`tileBtn()`, `tilePill()`, the duration panel, the timeline track, and the caret
-buttons in the tree.
+`pointerdown`/`mousedown`/`touchstart` propagation. Otherwise `makeMovable()` treats
+the press as the start of a tile move and the button never fires. This applies to
+`tileBtn()`, `tilePill()`, the duration panel, the timeline track, the scope chip and
+the resize corners.
 
 ---
 
@@ -406,7 +475,7 @@ docker stats vk-dev --no-stream --format "{{.MemUsage}}"
 Run it before and after hammering `/random` and `/video`. The number must not grow.
 
 In the browser, the invariant to verify after any playback change is the live element
-count — it must equal twice the tile count plus one (the trim preview) and never drift
+count — it must equal twice the tile count plus one (the editor preview) and never drift
 upward:
 
 ```js
@@ -421,19 +490,20 @@ Before considering a change to this repo done, confirm all of these still hold:
 
 1. The server never holds video **bytes** in memory; `/video` still answers `206` to
    Range requests. Proxies are files on disk, transcoded outside the request.
-2. `<video>` element count stays at `2 × tiles.size + 1` (trim preview); `Tile.destroy()` still does
+2. `<video>` element count stays at `2 × tiles.size + 1` (editor preview); `Tile.destroy()` still does
    `removeAttribute("src")` + `load()` to release the decoder.
 3. Every `await` inside `Tile` is followed by a generation check.
 4. The grid does not gravitate (`float: true`) and adding a tile never re-lays-out the
    mosaic: `placeNew()` uses free space, or halves a single tile as a last resort.
 5. Controls inside tiles still call `stopDrag()`.
-6. Audio is unmuted only when exactly one tile exists (and a single tile always plays the
-   original file, never the silent proxy).
+6. `audible()` decides sound: one tile, or mosaic audio on. Whenever a tile is meant to
+   be heard it plays the original file, never the silent proxy.
 7. The app never writes to or deletes from the video library; the only things it writes
    are proxies and mosaic JSON files, and mosaic ids are validated before becoming file
    names.
 8. UI strings are Italian; code and comments are English.
 9. No new runtime dependencies, no build step.
+10. Every canvas change goes through `remember()` first, so it can be undone.
 
 ## 8. Working agreements
 

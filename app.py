@@ -41,6 +41,14 @@ def video(p):
     return send_from_directory(library.ROOT_DIR, p, conditional=True)
 
 
+@app.route("/thumb/<path:p>")
+def thumb(p):
+    name = proxy.thumb(p)
+    if not name:
+        return jsonify({"error": "no thumbnail"}), 404
+    return send_from_directory(proxy.THUMB_DIR, name, max_age=7 * 86400)
+
+
 def _pool(videos, target):
     """Videos matching one scope: "" (all), an exact file, or a folder."""
     if not target:
@@ -53,12 +61,16 @@ def _pool(videos, target):
 
 @app.route("/random")
 def random_clip():
-    # A tile can mix several scopes (repeated `target`). Pick a scope first,
-    # then a file in it, so a small folder isn't drowned by a big one.
+    # A tile can mix several scopes (repeated `target`) and leave single
+    # files out (repeated `skip`). Pick a scope first, then a file in it,
+    # so a small folder isn't drowned by a big one.
     targets = [t.strip("/") for t in request.args.getlist("target")] or [""]
+    skip = set(request.args.getlist("skip"))
     clip_len = max(1.0, float(request.args.get("duration", 20)))
 
     videos = library.all_videos()
+    if skip:
+        videos = [v for v in videos if v not in skip]
     pools = [p for p in (_pool(videos, t) for t in targets) if p]
     if not pools:
         return jsonify({"error": "no videos"}), 404

@@ -33,7 +33,9 @@
   --scrim: rgba(0, 0, 0, 0.8);
   --font: "IBM Plex Mono", ui-monospace, monospace;
   --font-size: 13px;
-  --font-display: var(--font);        /* tabs, section labels, dialog titles */
+  --font-display: var(--font);        /* tabs, dialog titles */
+  --font-label: var(--font-display);  /* section labels */
+  --font-mono: var(--font);           /* times, counters, durations */
   --tab-size: 14px;
   --label-size: 13px;
   --label-transform: none;
@@ -47,6 +49,7 @@
   --title-transform: none;
   --title-color: var(--accent);
   --title-fill: none;                 /* a gradient here paints the title text */
+  --title-fill-size: auto;
   --title-anim: none;
   /* Effects: neutral by default ("0 0 #0000" is a shadow that draws
      nothing, so these can be combined in one box-shadow list). */
@@ -106,12 +109,13 @@
   --r-lg: 10px;
 }
 
-/* Vetro: liquid glass, after Apple's. Floating surfaces are a lens: a
-   thin luminous veil (light from the top-left, bouncing back bottom-
-   right), a strong blur that saturates and lifts what is behind (the
-   videos), a specular rim on the edge, a soft drop for depth. Controls
-   are capsules; the primary one is a glossy white pill. On pure black
-   there is nothing to see through: the effect lives over the video.
+/* Vetro: liquid glass, after Apple's — the theme for professionals, where
+   "there shouldn't be a theme". Floating surfaces are a thick lens: what is
+   behind them (the videos) is refracted (#liquid, an SVG displacement),
+   lightly blurred, saturated and lifted; a specular rim runs along the
+   edge, brightest top-left; a gloss on top and a deep drop below. Every
+   surface also adapts to the footage under it (script.js, adaptive glass).
+   One technical face everywhere (Geist), monospaced figures (Geist Mono).
    The heaviest theme for the GPU. */
 :root[data-theme="vetro"] {
   --panel: rgba(255, 255, 255, 0.06);
@@ -127,33 +131,36 @@
   --accent-dim: rgba(255, 255, 255, 0.16);
   --accent-soft: rgba(255, 255, 255, 0.12);
   --accent-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(214, 234, 255, 0.82));
-  --surface: linear-gradient(145deg, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.06) 38%,
-                             rgba(255, 255, 255, 0.025) 62%, rgba(255, 255, 255, 0.10) 100%);
-  --scrim: linear-gradient(180deg, rgba(20, 22, 30, 0.12), rgba(20, 22, 30, 0.38));
-  /* Apple's own face where there is one (San Francisco), Inter (its
-     closest free cousin) elsewhere. A professional theme: no character of
-     its own, the work is the character. */
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --surface: radial-gradient(120% 60% at 25% -10%, rgba(255, 255, 255, 0.22), transparent 55%),
+             linear-gradient(145deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 40%,
+                             rgba(255, 255, 255, 0.02) 62%, rgba(255, 255, 255, 0.09) 100%);
+  --scrim: radial-gradient(120% 80% at 25% -20%, rgba(255, 255, 255, 0.18), transparent 60%),
+           linear-gradient(180deg, rgba(20, 22, 30, 0.14), rgba(20, 22, 30, 0.34));
+  --font: "Geist", "Inter", system-ui, sans-serif;
   --font-size: 14px;
-  --font-title: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-label: "Geist Mono", ui-monospace, monospace;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.08em;
+  --font-title: "Geist", "Inter", system-ui, sans-serif;
+  --title-size: 30px;
   --title-weight: 600;
-  --title-spacing: -0.03em;
+  --title-spacing: -0.035em;
   --title-color: #fff;
-  --blur: blur(18px) saturate(2.2) brightness(1.12);
-  --sheen: inset 1.5px 1.5px 0 -0.5px rgba(255, 255, 255, 0.6),
-           inset -1px -1px 0 -0.5px rgba(255, 255, 255, 0.25),
-           inset 0 0 24px rgba(255, 255, 255, 0.07),
-           0 12px 40px rgba(0, 0, 0, 0.45);
-  --sheen-sm: inset 1px 1px 0 rgba(255, 255, 255, 0.5),
-              inset -1px -1px 0 rgba(255, 255, 255, 0.14),
+  --blur: blur(16px) saturate(1.9) brightness(1.1);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+           inset 0 0 32px rgba(255, 255, 255, 0.07),
+           0 20px 50px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sheen-sm: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.1),
               0 2px 10px rgba(0, 0, 0, 0.25);
-  --glow: 0 1px 12px rgba(255, 255, 255, 0.35);
+  --glow: 0 1px 12px rgba(255, 255, 255, 0.3);
   --thumb: linear-gradient(180deg, #ffffff, #e9edf3);
   --thumb-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
-  --r-sm: 16px;
-  --r-md: 22px;
-  --r-lg: 28px;
-  --r-btn: 999px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-btn: 12px;
 }
 
 /* Luci rosse: "naked", for nude work. Skin tones from cocoa to peach,
@@ -199,39 +206,50 @@
   --r-btn: 999px;
 }
 
-/* Atelier: haute couture. Black and champagne gold, a fashion-house serif
-   with spaced capitals, gold-foil fills, square corners, nothing else. */
-:root[data-theme="atelier"] {
-  --panel: #050505;
-  --panel-2: #0d0c0a;
-  --panel-3: #1a1814;
-  --line: #24211b;
-  --line-strong: #3a3428;
-  --text: #f3ece0;
-  --text-2: #b8ab92;
-  --text-3: #6e6655;
-  --accent: #d7b46a;
+/* Lusso: cigars, tailored suits, yachts. Gold foil on warm blacks of
+   tobacco and leather, a cognac glow in the panels, an engraved tailoring
+   serif in spaced capitals, nearly square corners; the start title is a
+   cigar band — gold capitals between double rules, a slow glint. */
+:root[data-theme="lusso"] {
+  --panel: #060504;
+  --panel-2: #110d09;
+  --panel-3: #21180f;
+  --line: #2c2116;
+  --line-strong: #4d3a22;
+  --text: #f2e6cf;
+  --text-2: #c2a878;
+  --text-3: #7a6447;
+  --accent: #d4af37;
+  --accent-2: #8a4b22;
   --accent-ink: #1a1203;
-  --accent-dim: rgba(215, 180, 106, 0.13);
-  --accent-soft: rgba(40, 30, 10, 0.92);
+  --accent-dim: rgba(212, 175, 55, 0.13);
+  --accent-soft: rgba(40, 28, 12, 0.92);
   --accent-fill: linear-gradient(135deg, #a8822f, #f3dc9f 48%, #c49a48 52%, #a8822f);
+  --surface: radial-gradient(110% 70% at 100% 100%, rgba(138, 75, 34, 0.16), transparent 60%),
+             radial-gradient(90% 60% at 0% 0%, rgba(212, 175, 55, 0.06), transparent 60%),
+             #060504;
   --font: "Jost", system-ui, sans-serif;
   --font-size: 14px;
   --font-display: "Cormorant Garamond", Georgia, serif;
   --tab-size: 17px;
-  --label-size: 12px;
+  --label-size: 11px;
   --label-transform: uppercase;
   --label-spacing: 0.24em;
+  --font-label: "Jost", system-ui, sans-serif;
   --font-title: "Cormorant Garamond", Georgia, serif;
-  --title-size: 38px;
-  --title-weight: 500;
-  --title-spacing: 0.32em;
+  --title-size: 36px;
+  --title-weight: 600;
+  --title-spacing: 0.3em;
   --title-transform: uppercase;
-  --title-fill: linear-gradient(135deg, #b8923f, #f6e2a8 50%, #b8923f);
+  --title-fill: linear-gradient(110deg, #a8822f 0%, #d4af37 25%, #fff0c2 35%, #d4af37 45%,
+                                #a8822f 60%, #d4af37 80%, #fff0c2 90%, #a8822f 100%);
+  --title-fill-size: 250% 100%;
   --title-color: transparent;
-  --r-sm: 0;
-  --r-md: 0;
-  --r-lg: 0;
+  --title-anim: shine 9s linear infinite;
+  --neon: 0 0 0 1px rgba(212, 175, 55, 0.55);
+  --r-sm: 2px;
+  --r-md: 2px;
+  --r-lg: 4px;
 }
 
 /* Galleria: product and still life. Black and white only, no colour at
@@ -262,73 +280,85 @@
   --r-lg: 0;
 }
 
-/* Festa: birthdays and parties. Confetti colours (pink, sun, sky) as a
-   gradient on everything that is "on", a round friendly face, pills, a
-   title that bounces. */
-:root[data-theme="festa"] {
-  --panel: #050308;
-  --panel-2: #0f0a16;
-  --panel-3: #1e1430;
-  --line: #261b38;
-  --line-strong: #3d2c5a;
-  --text: #fff7fb;
-  --text-2: #c7b3dc;
-  --text-3: #7a6a8f;
-  --accent: #ffd23f;
-  --accent-2: #ff5fa2;
-  --accent-ink: #1a0f00;
-  --accent-dim: rgba(255, 95, 162, 0.16);
-  --accent-soft: rgba(50, 20, 60, 0.92);
-  --accent-fill: linear-gradient(90deg, #ff5fa2, #ffd23f, #3fd0ff);
-  --font: "Fredoka", system-ui, sans-serif;
-  --font-size: 15px;
-  --tab-size: 15px;
-  --title-size: 46px;
+/* 404: the ignorant one. An old website, a hacker's terminal, a page
+   whose stylesheet didn't load: greys on black, a pixel terminal face, an
+   unstyled Times heading with a blinking cursor, Windows 95 bevels that
+   press in, and selection shown by inverting, like old menus. Almost no
+   colour; it should look nearly broken while working perfectly. */
+:root[data-theme="retro"] {
+  --panel: #000000;
+  --panel-2: #121212;
+  --panel-3: #2a2a2a;
+  --line: #3a3a3a;
+  --line-strong: #7a7a7a;
+  --text: #d6d6d6;
+  --text-2: #9a9a9a;
+  --text-3: #626262;
+  --accent: #ffffff;
+  --accent-ink: #000000;
+  --accent-dim: rgba(255, 255, 255, 0.12);
+  --accent-soft: rgba(40, 40, 40, 0.92);
+  --accent-fill: #ffffff;
+  --surface: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px), #000;
+  --scrim: rgba(0, 0, 0, 0.88);
+  --font: "VT323", "Courier New", monospace;
+  --font-size: 19px;
+  --font-display: "VT323", "Courier New", monospace;
+  --font-mono: "VT323", "Courier New", monospace;
+  --tab-size: 21px;
+  --label-size: 18px;
+  --label-transform: uppercase;
+  --font-title: "Times New Roman", Times, serif;
+  --title-size: 44px;
   --title-weight: 700;
-  --title-fill: linear-gradient(90deg, #ff5fa2, #ffd23f, #3fd0ff);
-  --title-color: transparent;
-  --title-anim: bounce 2.6s ease-in-out infinite;
-  --r-sm: 14px;
-  --r-md: 18px;
-  --r-lg: 22px;
-  --r-btn: 999px;
+  --title-spacing: 0;
+  --title-color: #ffffff;
+  --glow: 0 0 4px rgba(255, 255, 255, 0.45);
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
 }
 
-/* Boudoir: the artistic nude, not the shop. Antique rose and mauve on
-   black, an italic serif, candlelight around the title. Quiet, warm,
-   intimate. */
-:root[data-theme="boudoir"] {
-  --panel: #060304;
-  --panel-2: #110a0c;
-  --panel-3: #221418;
-  --line: #2a1a1e;
-  --line-strong: #44282f;
-  --text: #f6e4e4;
-  --text-2: #c79ea3;
-  --text-3: #7d5a60;
-  --accent: #e8a0a8;
-  --accent-2: #b4687a;
-  --accent-ink: #24070c;
-  --accent-dim: rgba(232, 160, 168, 0.14);
-  --accent-soft: rgba(45, 18, 24, 0.92);
-  --accent-fill: linear-gradient(135deg, #b4687a, #e8a0a8);
-  --surface: radial-gradient(120% 70% at 50% 0%, rgba(232, 160, 168, 0.06), transparent 70%), #060304;
-  --font: "Cormorant Garamond", Georgia, serif;
-  --font-size: 16px;
-  --tab-size: 18px;
-  --label-size: 16px;
-  --label-style: italic;
-  --font-title: "Cormorant Garamond", Georgia, serif;
-  --title-size: 52px;
-  --title-weight: 400;
-  --title-style: italic;
-  --title-spacing: 0.01em;
-  --title-anim: breathe 6s ease-in-out infinite;
-  --glow: 0 0 22px rgba(232, 160, 168, 0.35);
-  --r-sm: 12px;
-  --r-md: 16px;
-  --r-lg: 20px;
-  --r-btn: 999px;
+/* Rave: hard techno in a club like the Bolgia. Industrial black and
+   white, one laser red, chrome on what is "on", a faint laser crossing the
+   panels, condensed caps, and a blackletter start title that glitches —
+   a red/cyan split and a strobe flash now and then. */
+:root[data-theme="rave"] {
+  --panel: #000000;
+  --panel-2: #0a0a0a;
+  --panel-3: #191919;
+  --line: #222222;
+  --line-strong: #3d3d3d;
+  --text: #f2f2f2;
+  --text-2: #9c9c9c;
+  --text-3: #5a5a5a;
+  --accent: #ff1f1f;
+  --accent-2: #ffffff;
+  --accent-ink: #000000;
+  --accent-dim: rgba(255, 31, 31, 0.14);
+  --accent-soft: rgba(40, 0, 0, 0.92);
+  --accent-fill: linear-gradient(180deg, #ffffff, #9a9a9a 45%, #e8e8e8 55%, #6d6d6d);
+  --surface: linear-gradient(115deg, transparent 48%, rgba(255, 31, 31, 0.1) 49%, transparent 50%),
+             radial-gradient(80% 60% at 50% 120%, rgba(255, 255, 255, 0.06), transparent 60%),
+             #000;
+  --font: "Archivo Narrow", "Archivo", sans-serif;
+  --font-size: 15px;
+  --font-display: "Archivo Narrow", "Archivo", sans-serif;
+  --tab-size: 16px;
+  --label-size: 12px;
+  --label-transform: uppercase;
+  --label-spacing: 0.2em;
+  --font-title: "UnifrakturCook", "Archivo Narrow", serif;
+  --title-size: 64px;
+  --title-weight: 700;
+  --title-spacing: 0;
+  --title-color: #ffffff;
+  --title-anim: glitch 3.2s infinite;
+  --neon: 0 0 0 1px #ff1f1f, 0 0 14px rgba(255, 31, 31, 0.6);
+  --glow: 0 0 8px rgba(255, 31, 31, 0.7);
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -484,9 +514,22 @@ button {
   background: var(--panel);
   border-right: 1px solid var(--line);
   transform: translateX(-101%);
-  transition: transform 0.25s ease-out;
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+  touch-action: pan-y;               /* horizontal swipes are ours (drawer gesture) */
 }
 #sidebar.open { transform: none; }
+#sidebar.dragging { transition: none; }
+
+/* Invisible strip on the left edge: swipe from it to pull the drawer open. */
+#edge {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 340;
+  width: 18px;
+  touch-action: none;
+}
 
 .sb-header {
   display: flex;
@@ -814,10 +857,11 @@ button {
   padding: 8px;
   background: var(--scrim);
   opacity: 0;
+  transform: translateY(10px);
   pointer-events: none;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s, transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.15);
 }
-.tile-overlay.visible { opacity: 1; pointer-events: auto; }
+.tile-overlay.visible { opacity: 1; transform: none; pointer-events: auto; }
 
 .tile-title {
   display: flex;
@@ -1506,7 +1550,7 @@ input[type="range"]::-moz-range-thumb {
 .sb-tab, .ed-h h4, .modal h4 { font-family: var(--font-display); }
 .sb-tab { font-size: var(--tab-size); }
 .ed-label, .sb-section-h, .tile-durs-title {
-  font-family: var(--font-display);
+  font-family: var(--font-label);
   font-size: var(--label-size);
   font-style: var(--label-style);
   text-transform: var(--label-transform);
@@ -1521,6 +1565,7 @@ input[type="range"]::-moz-range-thumb {
   text-transform: var(--title-transform);
   color: var(--title-color);
   background: var(--title-fill);
+  background-size: var(--title-fill-size);
   -webkit-background-clip: text;
   background-clip: text;
   text-shadow: var(--glow);
@@ -1528,22 +1573,56 @@ input[type="range"]::-moz-range-thumb {
 }
 /* A gradient-painted title can't carry a text-shadow (it would show
    through the transparent text). */
-:root[data-theme="atelier"] .start-inner h1,
-:root[data-theme="luci"] .start-inner h1,
-:root[data-theme="festa"] .start-inner h1 { text-shadow: none; }
+:root[data-theme="lusso"] .start-inner h1,
+:root[data-theme="luci"] .start-inner h1 { text-shadow: none; }
 
-/* a sign with a tired tube: mostly on, now and then a flicker */
-@keyframes neon {
-  0%, 18%, 22%, 60%, 64%, 100% { opacity: 1; }
-  20%, 62% { opacity: 0.35; }
+/* Lusso: the title is a cigar band. */
+:root[data-theme="lusso"] .start-inner h1 {
+  padding: 10px 6px 10px 26px;    /* the right side's letter-spacing balances it */
+  border-top: 3px double var(--accent);
+  border-bottom: 3px double var(--accent);
 }
+
+/* 404: an unstyled heading with a blinking cursor, bevelled buttons that
+   press in, selection by inversion. */
+:root[data-theme="retro"] .start-inner h1 { text-decoration: underline; }
+:root[data-theme="retro"] .start-inner h1::after { content: "_"; animation: blink 1s steps(1) infinite; }
+:root[data-theme="retro"] :is(.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .sm-speed button,
+                              .sb-icon-btn, .tree-action, .tile-scope, .pop-item, .theme-opt, .crumb) {
+  border: 2px outset #8a8a8a;
+  background: #1c1c1c;
+}
+:root[data-theme="retro"] :is(.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .sm-speed button,
+                              .sb-icon-btn, .tree-action, .tile-scope, .pop-item, .theme-opt, .crumb):active {
+  border-style: inset;
+  transform: none;
+}
+:root[data-theme="retro"] :is(.sb-tab.active, .pop-item.active, .theme-opt.active, .dur-opt.active,
+                              .sm-speed button.active, .tile-btn.on, .ed-row.active) {
+  background: #ffffff;
+  color: #000000;
+  border-style: inset;
+}
+
 @keyframes breathe {
   0%, 100% { filter: brightness(1); }
   50% { filter: brightness(1.35); }
 }
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+/* glitch: a red/cyan split, a jolt, a strobe flash, then nothing */
+@keyframes glitch {
+  0%, 88%, 100% { text-shadow: var(--glow); transform: none; filter: none; }
+  89% { text-shadow: -4px 0 #ff1f1f, 4px 0 #00e5ff; transform: translateX(3px) skewX(-8deg); }
+  90% { filter: brightness(4); }
+  91% { text-shadow: 4px 0 #ff1f1f, -4px 0 #00e5ff; transform: translateX(-3px); filter: none; }
+  92% { text-shadow: var(--glow); transform: none; }
+  95% { filter: brightness(3); }
+  96% { filter: none; }
+}
+@keyframes blink { 50% { opacity: 0; } }
+/* a glint running across gold */
+@keyframes shine {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
 }
 
 /* Adaptive glass (script.js, "vetro" only) sets --text*, --accent and the
@@ -1557,11 +1636,14 @@ input[type="range"]::-moz-range-thumb {
   transition: opacity 0.25s, transform 0.25s, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
 }
 :root[data-theme="vetro"] #sidebar {
-  transition: transform 0.25s ease-out, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+              --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
 }
+:root[data-theme="vetro"] #sidebar.dragging { transition: none; }
 :root[data-theme="vetro"] .tile-overlay,
 :root[data-theme="vetro"] .sm-stagebar {
-  transition: opacity 0.15s, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+  transition: opacity 0.18s, transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.15),
+              --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
 }
 :root[data-theme="vetro"] .pop,
 :root[data-theme="vetro"] #toast,
@@ -1572,8 +1654,99 @@ input[type="range"]::-moz-range-thumb {
   transition: --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
 }
 
+/* Figures in the theme's mono face. */
+.tl-time, .mosaic-count, .sm-cov, .ed-cut, .lib-badge, .tile-pill, .dur-opt {
+  font-family: var(--font-mono);
+}
+
+/* Vetro, the glass itself. Small surfaces refract (#liquid, an SVG
+   displacement in index.html; Chromium renders it — elsewhere the first,
+   plain declaration stays). Big ones (drawer, dialogs) only blur: a
+   displacement re-rendered over half a screen of playing video would
+   choke the tablet. */
+:root[data-theme="vetro"] #topbar,
+:root[data-theme="vetro"] .pop,
+:root[data-theme="vetro"] .tile-overlay,
+:root[data-theme="vetro"] .tile-durs,
+:root[data-theme="vetro"] #toast,
+:root[data-theme="vetro"] .sm-stagebar,
+:root[data-theme="vetro"] .sm-pill {
+  backdrop-filter: blur(14px) saturate(1.9) brightness(1.1);
+  backdrop-filter: url(#liquid) blur(5px) saturate(1.9) brightness(1.1);
+}
+/* The specular rim: a 1.5px gradient ring, brightest top-left. */
+:root[data-theme="vetro"] :is(#topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed,
+                              #toast, .sm-stagebar)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.14) 28%,
+                              rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.08) 72%,
+                              rgba(255, 255, 255, 0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+:root[data-theme="vetro"] .modal,
+:root[data-theme="vetro"] .ed { position: relative; }
+/* Floating, not docked: the drawer and the tile controls hang inside the
+   screen with air around them. */
+:root[data-theme="vetro"] #sidebar {
+  top: 10px;
+  bottom: 10px;
+  left: 10px;
+  width: min(520px, calc(92vw - 20px));
+  border: none;
+  border-radius: var(--r-lg);
+  transform: translateX(calc(-100% - 20px));
+}
+:root[data-theme="vetro"] #sidebar.open { transform: none; }
+:root[data-theme="vetro"] .tile-overlay {
+  inset: auto 8px 8px 8px;
+  border-radius: var(--r-lg);
+}
+
+/* ============ MOTION ============ */
+/* Short and physical: things press, rise and settle. All of it goes away
+   for people who asked their system for reduced motion. */
+.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .dur-opt, .pop-item, .theme-opt,
+.tile-scope, .crumb, .sb-icon-btn, .tree-action, .sm-speed button {
+  transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.2), background-color 0.15s, color 0.15s;
+}
+.tb-btn:active, .tile-btn:active, .tile-pill:active, .btn:active, .sb-tab:active,
+.dur-opt:active, .pop-item:active, .theme-opt:active, .tile-scope:active, .crumb:active,
+.sb-icon-btn:active, .tree-action:active, .sm-speed button:active { transform: scale(0.93); }
+.lib-card, .mosaic-row, .ed-row { transition: transform 0.14s ease, background-color 0.15s; }
+.lib-card:active, .mosaic-row:active, .ed-row:active { transform: scale(0.97); }
+
+.grid-stack-item-content, .sm-cell.in { animation: tile-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.12); }
+.pop { animation: pop-in 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2); transform-origin: top center; }
+.modal-wrap { animation: fade-in 0.2s ease; }
+.modal, .ed { animation: sheet-in 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+#toast { animation: toast-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.theme-bar, .sb-panel { animation: rise-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.lib-card { animation: rise-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+            animation-delay: calc(var(--i, 0) * 18ms); }
+.start-logo { animation: rise-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) backwards; }
+
+@keyframes tile-in { from { opacity: 0; transform: scale(0.92); } }
+@keyframes pop-in { from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.96); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(18px) scale(0.97); } }
+@keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(16px); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Rounder tiles where the theme is round. */
 :root[data-theme="vetro"] .grid-stack-item-content,
-:root[data-theme="vetro"] .sm-cell,
-:root[data-theme="festa"] .grid-stack-item-content,
-:root[data-theme="festa"] .sm-cell { border-radius: var(--r-md); }
+:root[data-theme="vetro"] .sm-cell { border-radius: var(--r-md); }

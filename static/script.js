@@ -1812,21 +1812,25 @@ const THEMES = [
     colors: ["#ffad1f", "#f4ead6", "#3c3119"] },
   { id: "ghiaccio", name: "Ghiaccio", font: '"Inter", sans-serif',
     colors: ["#3fe0cf", "#e4f4f3", "#1e3a3f"] },
-  { id: "vetro", name: "Vetro", font: '-apple-system, "SF Pro Display", "Inter", sans-serif',
+  { id: "vetro", name: "Vetro", font: '"Geist", sans-serif',
     colors: ["linear-gradient(145deg,#fff,#9fd6ff)", "rgba(255,255,255,.5)", "rgba(255,255,255,.2)"] },
   { id: "luci", name: "Luci rosse", font: '"Bodoni Moda", serif',
     colors: ["linear-gradient(90deg,#8a5a44,#f0c9b0)", "#c0392b", "#f3dccf"] },
-  { id: "atelier", name: "Atelier", font: '"Cormorant Garamond", serif',
-    colors: ["linear-gradient(135deg,#a8822f,#f3dc9f,#a8822f)", "#f3ece0", "#3a3428"] },
+  { id: "lusso", name: "Lusso", font: '"Cormorant Garamond", serif',
+    colors: ["linear-gradient(135deg,#a8822f,#f3dc9f,#a8822f)", "#8a4b22", "#f2e6cf"] },
   { id: "galleria", name: "Galleria", font: '"Archivo", sans-serif',
     colors: ["#ffffff", "#9a9a9a", "#3a3a3a"] },
-  { id: "festa", name: "Festa", font: '"Fredoka", sans-serif',
-    colors: ["#ff5fa2", "#ffd23f", "#3fd0ff"] },
-  { id: "boudoir", name: "Boudoir", font: '"Cormorant Garamond", serif',
-    colors: ["#e8a0a8", "#b4687a", "#f6e4e4"] },
+  { id: "retro", name: "404", font: '"VT323", monospace',
+    colors: ["#ffffff", "#9a9a9a", "#1c1c1c"] },
+  { id: "rave", name: "Rave", font: '"UnifrakturCook", serif',
+    colors: ["#ff1f1f", "linear-gradient(180deg,#fff,#6d6d6d)", "#000000"] },
 ];
 
-const currentTheme = () => document.documentElement.dataset.theme || "camera";
+// A theme saved on this device that no longer exists falls back to the default.
+const currentTheme = () => {
+  const t = document.documentElement.dataset.theme;
+  return THEMES.some(x => x.id === t) ? t : "camera";
+};
 
 function applyTheme(id) {
   if (id === "camera") delete document.documentElement.dataset.theme;
@@ -1971,6 +1975,61 @@ function showTab(id) {
   if (id === "smart") Smart.pollStatus();
 }
 
+// ---------------------------------------------------------------------
+//  Drawer gestures: swipe in from the left edge (#edge) to pull it open,
+//  swipe it left to close it. It follows the finger and settles by how
+//  far it went or how fast it was flicked. Vertical moves stay scrolls;
+//  sliders, timelines, breadcrumbs and a card being dragged are left alone.
+// ---------------------------------------------------------------------
+function initDrawerGestures() {
+  const sb = document.getElementById("sidebar");
+  let g = null;              // { id, x0, y0, t0, open, w, axis, off }
+  let swiped = 0;
+
+  const begin = (e, open) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(),
+          open, w: sb.offsetWidth, axis: null, off: open ? 0 : -sb.offsetWidth };
+  };
+  document.getElementById("edge").addEventListener("pointerdown", e => begin(e, false));
+  sb.addEventListener("pointerdown", e => {
+    if (!e.target.closest("input, .tl-track, .crumbs")) begin(e, true);
+  });
+
+  const reset = () => { sb.classList.remove("dragging"); sb.style.transform = ""; };
+  window.addEventListener("pointermove", e => {
+    if (!g || e.pointerId !== g.id) return;
+    if (document.querySelector(".lib-card.dragging")) { reset(); g = null; return; }
+    const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    if (!g.axis) {
+      if (Math.hypot(dx, dy) < 10) return;
+      g.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? "x" : "y";
+      if (g.axis === "y" || (g.open && dx > 0)) { g = null; return; }
+      sb.classList.add("dragging");
+    }
+    g.off = g.open ? clamp(dx, -g.w, 0) : clamp(dx - g.w, -g.w, 0);
+    sb.style.transform = `translateX(${g.off}px)`;
+  });
+  const end = e => {
+    if (!g || e.pointerId !== g.id) return;
+    if (g.axis === "x") {
+      const v = (e.clientX - g.x0) / Math.max(1, performance.now() - g.t0);   // px/ms
+      const open = v > 0.45 ? true : v < -0.45 ? false : g.off > -g.w / 2;
+      reset();
+      sb.classList.toggle("open", open);
+      if (open) refreshMosaics();
+      swiped = Date.now();
+    }
+    g = null;
+  };
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", end);
+  // A swipe must not also count as a tap on whatever it started on.
+  sb.addEventListener("click", e => {
+    if (Date.now() - swiped < 350) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+
 function closeSidebar() { document.getElementById("sidebar").classList.remove("open"); }
 
 // Files were moved or deleted (outside the app) while a tile was playing.
@@ -2054,7 +2113,11 @@ function renderLibrary() {
     p.textContent = "Cartella vuota";
     box.append(p);
   }
-  for (const n of nodes) box.append(libCard(n));
+  nodes.forEach((n, i) => {
+    const card = libCard(n);
+    card.style.setProperty("--i", Math.min(i, 24));    // cascade in
+    box.append(card);
+  });
 }
 
 function libCard(n) {
@@ -2371,6 +2434,12 @@ window.addEventListener("load", () => {
   try { mosaicAudio = !!localStorage.getItem("kiosk.audio"); } catch (e) {}
   initGrid();
   initEditor();
+  initDrawerGestures();
+  // Themes that were merged or removed: move this device to their heir.
+  const heir = { atelier: "lusso", jetset: "lusso", festa: "camera", boudoir: "camera" };
+  const saved = document.documentElement.dataset.theme;
+  if (heir[saved]) applyTheme(heir[saved]);
+  else if (saved && currentTheme() === "camera") applyTheme("camera");
   document.addEventListener("input", e => { if (e.target.type === "range") paintRange(e.target); });
   syncGlass();
   updateAudioBtn();

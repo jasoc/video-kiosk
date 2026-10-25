@@ -395,6 +395,11 @@ This is deliberately the entire feature set (plus the regia, 4.12). Do not add m
   duplicate, skip, close.
 - **Duplicate** (`duplicateTile()`) → a copy with the same scopes, settings and cuts;
   free space first, otherwise `placeNew(prefer)` splits the duplicated tile itself.
+- **Drawer gesture** (`initDrawerGestures()`): swipe in from the left edge (`#edge`, an
+  18 px strip) to pull the drawer open, swipe it left to close; it follows the finger
+  and settles by distance or flick speed. Vertical moves stay scrolls; sliders,
+  timelines, breadcrumbs and a card being dragged are left alone; a swipe never counts
+  as a tap.
 - **Topbar** → library drawer, undo, layout presets, pause, skip-all, mosaic audio,
   fullscreen. Auto-hides
   after 3.5 s of no pointer activity (kept visible while the drawer is open).
@@ -503,8 +508,15 @@ in a dark photo room, and black pixels are off). Solid surfaces (`--panel`,
 `--panel-2`, `--panel-3`), 1 px lines, one accent per theme, tabular numerals. The owner
 explicitly asked to drop the "made by an LLM" look: **no box-shadows, no
 `backdrop-filter` blur, no gradients, no glow, no uppercase letter-spaced
-micro-labels, no entrance animations** — except where a theme asks for an effect on
-purpose, and then only through the effect tokens (below).
+micro-labels** — except where a theme asks for an effect on purpose, and then only
+through the effect tokens (below).
+
+**Motion** (the "MOTION" block at the end of `style.css`, all themes): short and
+physical — controls scale down when pressed, tiles and cells grow in, tile controls
+rise, popovers/dialogs/toasts settle with a slight spring, library cards cascade in
+(`--i`, set by `renderLibrary()`), the drawer moves on the iOS sheet curve. Everything
+is switched off under `prefers-reduced-motion`. Keep new motion that short and that
+purposeful; no decorative loops (the themed start titles are the one exception).
 
 **Nine themes**, one per kind of shoot the studio shows off (the kiosk is a showcase
 of the studio's work before production), picked per device from the drawer header
@@ -516,19 +528,19 @@ an inline script in `<head>` before the first paint). They all share the black:
 | `camera` (default, `:root`) | the darkroom itself | safelight red, **text red too** | IBM Plex Mono | 2–4 px |
 | `pellicola` | film, warm work | amber, paper text | Space Grotesk | 10–18 px |
 | `ghiaccio` | anything, quietly | cyan | Inter | 6–10 px |
-| `vetro` | professionals ("no theme") | Apple-style liquid glass: lens surfaces, blur + saturate + brighten, specular rims; **adaptive**: each surface turns light/dark and takes the complementary accent of the footage under it | system font (San Francisco), Inter elsewhere | 16–28 px, capsules |
+| `vetro` | professionals ("no theme") | Apple-style liquid glass: refraction (`#liquid` SVG displacement on small surfaces), gloss, specular gradient rim (`::before`), deep drop; floating drawer and tile-control islands; **adaptive**: each surface turns light/dark and takes the complementary accent of the footage under it | Geist, Geist Mono for figures and labels | 10–20 px |
 | `luci` | nude ("naked") | skin tones cocoa → peach, dim red light from above, soft red halo | Jost, Bodoni Moda italic (titles, tabs, labels) | capsules |
-| `atelier` | luxury, haute couture | black + champagne gold foil, spaced capitals | Jost, Cormorant Garamond | square |
+| `lusso` | luxury: cigars, tailored suits, yachts | gold foil on tobacco/leather blacks, cognac glow, title as a cigar band (double rules, slow glint) | Jost, Cormorant Garamond caps | near-square |
 | `galleria` | products, still life | black and white only, no colour | Archivo | square |
-| `festa` | birthdays, parties | confetti gradient (pink, sun, sky), bouncing title | Fredoka | round, capsules |
-| `boudoir` | artistic nude | antique rose and mauve, candlelit title | Cormorant Garamond italic | round, capsules |
+| `retro` ("404") | the ignorant one | old website / hacker terminal, almost no colour: greys, Win95 bevels, selection by inversion, unstyled Times title with a blinking cursor | VT323, Times New Roman | square |
+| `rave` | hard techno (Bolgia-style) | industrial black/white, laser red, chrome fills, a laser across the panels, blackletter title that glitches and strobes | Archivo Narrow, UnifrakturCook | square |
 
 **The tokens.** Colours: `--panel*`, `--line*`, `--text*`, `--accent`, `--accent-2`,
 `--accent-ink`, `--accent-dim`, `--accent-soft`, `--accent-fill` (solid accent
 backgrounds — may be a gradient), `--surface` (floating surfaces — may be a gradient),
-`--scrim`. Type: `--font`, `--font-size`, `--font-display`, `--tab-size`, `--label-*`
+`--scrim`. Type: `--font`, `--font-size`, `--font-display`, `--font-label`, `--font-mono`, `--tab-size`, `--label-*`
 (size, transform, spacing, style), `--font-title`, `--title-*` (size, weight, style,
-spacing, transform, color, fill, anim). Shape: `--r-sm/md/lg`, `--r-btn` (buttons, tabs,
+spacing, transform, color, fill, fill-size, anim). Shape: `--r-sm/md/lg`, `--r-btn` (buttons, tabs,
 chips — `999px` makes capsules). Effects: `--blur` (backdrop-filter of floating
 surfaces), `--sheen` (their box-shadow), `--sheen-sm` (controls), `--neon` (accented,
 active things), `--glow` (accented text). Every token has a neutral default in `:root`
@@ -542,6 +554,11 @@ selector anywhere else (the only `:root[data-theme=…]` rules outside the token
 live there too). Blur is not applied to controls *inside* a blurred surface (nested
 backdrop filters see nothing). `vetro` costs GPU time on a tablet that is also decoding
 video — if the mosaic stutters with it, that's why.
+
+**Vetro's refraction** is `backdrop-filter: url(#liquid) …`, declared after a plain
+blur so browsers that can't render an SVG backdrop keep the blur. It is applied only to
+small surfaces (topbar, tile controls, popovers, toasts, regia bar): over the drawer or
+a dialog it would re-render a displacement over half a screen of playing video.
 
 **Adaptive glass** (`syncGlass()` / `glassTick()` in `script.js`, only while `vetro` is
 active): every 500 ms each visible floating surface (`GLASS_SURFACES`) draws the

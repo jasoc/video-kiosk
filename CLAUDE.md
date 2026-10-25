@@ -46,7 +46,9 @@ a single Docker container with a host directory of videos bind-mounted into it.
 | `static/style.css` | All styling. Dark, hairline-bordered, "enterprise minimal". |
 | `Dockerfile` | `python:3.12-alpine` + `ffmpeg` (needed for `ffprobe`). |
 | `compose.yaml` | Local dev: builds the image, bind-mounts the repo for live editing. |
-| `compose-ghcr.yaml` | Production: pulls the published `ghcr.io/jasoc/video-kiosk` image. |
+| `compose-ghcr.yaml` | Production: runs `${KIOSK_IMAGE:-ghcr.io/jasoc/video-kiosk:latest}`. |
+| `.github/workflows/` | `ci.yml` (syntax checks + Trivy) and `docker-publish.yml` (image channels on GHCR), see section 9. |
+| `.trivyignore.yaml` | Trivy findings accepted on purpose, each with its reason. |
 
 The app does **not** organise the library: there is no file manager. Videos are moved,
 renamed and deleted outside the app (an earlier in-app file manager was removed).
@@ -496,19 +498,61 @@ and `smart: {sources, rhythm, density, volume}` — never the (always different)
 
 ## 5. Styling conventions (`static/style.css`)
 
-Design language: **flat**. Solid surfaces (`--panel`, `--panel-2`, `--panel-3`), 1 px
-lines, a single accent (`--accent: #8ea8ff`), tabular numerals. The owner explicitly
-asked to drop the "made by an LLM" look: **no box-shadows, no `backdrop-filter` blur, no
-gradients, no glow, no uppercase letter-spaced micro-labels, no entrance animations.**
-Everything is driven by CSS custom properties in `:root` — change the palette there, not
-at call sites.
+Design language: **on pure black** (`--bg: #000` — the kiosk is an AMOLED tablet
+in a dark photo room, and black pixels are off). Solid surfaces (`--panel`,
+`--panel-2`, `--panel-3`), 1 px lines, one accent per theme, tabular numerals. The owner
+explicitly asked to drop the "made by an LLM" look: **no box-shadows, no
+`backdrop-filter` blur, no gradients, no glow, no uppercase letter-spaced
+micro-labels, no entrance animations** — except where a theme asks for an effect on
+purpose, and then only through the effect tokens (below).
+
+**Nine themes**, one per kind of shoot the studio shows off (the kiosk is a showcase
+of the studio's work before production), picked per device from the drawer header
+(palette button → `#themeBar`, `applyTheme()`, `localStorage["kiosk.theme"]`, applied by
+an inline script in `<head>` before the first paint). They all share the black:
+
+| Theme | For | Look | Type | Corners |
+|---|---|---|---|---|
+| `camera` (default, `:root`) | the darkroom itself | safelight red, **text red too** | IBM Plex Mono | 2–4 px |
+| `pellicola` | film, warm work | amber, paper text | Space Grotesk | 10–18 px |
+| `ghiaccio` | anything, quietly | cyan | Inter | 6–10 px |
+| `vetro` | showpiece | Apple-style liquid glass: lens surfaces, blur + saturate + brighten, specular rims, glossy white primary pill | Manrope | 16–28 px, capsules |
+| `luci` | nude, the fun way | sexy-shop neon: lipstick red → hot pink, velvet blacks, glowing tubes | Space Grotesk, Bebas Neue, Mr Dafoe sign (breathing, flickering) | capsules |
+| `atelier` | luxury, haute couture | black + champagne gold foil, spaced capitals | Jost, Cormorant Garamond | square |
+| `galleria` | products, still life | black and white only, no colour | Archivo | square |
+| `festa` | birthdays, parties | confetti gradient (pink, sun, sky), bouncing title | Fredoka | round, capsules |
+| `boudoir` | artistic nude | antique rose and mauve, candlelit title | Cormorant Garamond italic | round, capsules |
+
+**The tokens.** Colours: `--panel*`, `--line*`, `--text*`, `--accent`, `--accent-2`,
+`--accent-ink`, `--accent-dim`, `--accent-soft`, `--accent-fill` (solid accent
+backgrounds — may be a gradient), `--surface` (floating surfaces — may be a gradient),
+`--scrim`. Type: `--font`, `--font-size`, `--font-display`, `--tab-size`, `--label-*`
+(size, transform, spacing, style), `--font-title`, `--title-*` (size, weight, style,
+spacing, transform, color, fill, anim). Shape: `--r-sm/md/lg`, `--r-btn` (buttons, tabs,
+chips — `999px` makes capsules). Effects: `--blur` (backdrop-filter of floating
+surfaces), `--sheen` (their box-shadow), `--sheen-sm` (controls), `--neon` (accented,
+active things), `--glow` (accented text). Every token has a neutral default in `:root`
+(shadows default to `0 0 #0000`, a shadow that draws nothing, so they can be combined in
+one `box-shadow` list); a theme sets only what it changes.
+
+**Where they apply.** Rules throughout the file read the colour/type/shape tokens. The
+effects, surfaces, capsules and title/label styles are applied in **one** block, "THEME
+EFFECTS", at the end of `style.css`; never put a blur, a shadow, a glow or a theme
+selector anywhere else (the only `:root[data-theme=…]` rules outside the token blocks
+live there too). Blur is not applied to controls *inside* a blurred surface (nested
+backdrop filters see nothing). `vetro` costs GPU time on a tablet that is also decoding
+video — if the mosaic stutters with it, that's why.
+
+Never hardcode a colour, a font, a radius or an effect at a call site; a new token
+needs a neutral default in `:root`. Only theme-neutral black veils (`rgba(0,0,0,…)`)
+are written inline. `THEMES` in `script.js` repeats three colours per theme for the
+picker's swatches only (keep it in sync when adding a theme).
 
 Conventions to preserve:
 
-- Radii come from `--r-sm/md/lg`; do not hardcode `border-radius`.
 - Touch targets are `--hit` (44 px) — this runs on a tablet, driven by fingers.
 - Tile controls sit on a solid scrim band (`--scrim`) and wrap on narrow tiles.
-- Dark theme only. There is no light mode and none is wanted.
+- Dark only. There is no light theme and none is wanted.
 
 ---
 
@@ -586,3 +630,23 @@ Before considering a change to this repo done, confirm all of these still hold:
   code, do not run builds, tests, or containers.
 - Do not commit or push unless explicitly asked.
 - Prefer deleting code over adding options. This app's value is that it is small.
+
+## 9. Publishing (GHCR)
+
+Same mechanism as the owner's `lodge` repo. One image, `ghcr.io/jasoc/video-kiosk`, in
+channels — iterating never needs a version:
+
+| Trigger | Tags | Meaning |
+|---|---|---|
+| push to `main` touching the image (`*.py`, `requirements.txt`, `static/**`, `Dockerfile`, `.dockerignore`) | `sha-<short>`, `edge` | automatic, what a test kiosk follows |
+| manual run on a branch (`gh workflow run docker-publish.yml --ref <branch>`) | `sha-<short>`, `br-<branch>` | try a branch |
+| tag `vX.Y.Z` | `X.Y.Z`, `X.Y`, `X` (not for `v0.*`), `latest` | **a release — only this moves `latest`**, and only when the owner says so |
+| tag `vX.Y.Z-rc.N` | `X.Y.Z-rc.N` | pre-release, `latest` stays |
+
+Nothing is pushed unless `ci.yml` passes on the same commit: Python compiles, JS parses,
+Trivy finds no fixable HIGH/CRITICAL issue in the repo or the image (accepted findings
+go in `.trivyignore.yaml`, with a reason). Consecutive pushes cancel each other
+(`concurrency`). The image carries `org.opencontainers.image.version` from
+`git describe` (`1.3.0`, `1.2.0-5-gabc1234`, or a bare sha before the first tag).
+
+Never create or push a release tag unless the owner asks for that release.

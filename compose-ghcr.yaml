@@ -1,6 +1,8 @@
 services:
   video-kiosk:
-    image: ghcr.io/jasoc/video-kiosk:0.0.2
+    # :latest = the last release (a vX.Y.Z tag); a test kiosk can follow :edge (main)
+    # or pin :X.Y.Z / :sha-<short>. Set KIOSK_IMAGE in .env to change it.
+    image: ${KIOSK_IMAGE:-ghcr.io/jasoc/video-kiosk:latest}
     container_name: video-kiosk
     restart: unless-stopped
     ports:
@@ -13,5 +15,5 @@ services:
 volumes:
   # low-res proxies built on demand; safe to delete, they get rebuilt
   proxies:
-  # saved mosaics, one JSON file each: this one is worth keeping
+  # saved mosaics and video analyses: this one is worth keeping
   data:

@@ -1783,6 +1783,53 @@ function toast(msg) {
 
 function showStart() { document.getElementById("start-screen").classList.remove("hidden"); }
 function hideStart() { document.getElementById("start-screen").classList.add("hidden"); }
+// ---------------------------------------------------------------------
+//  Themes: all on pure black, picked per device. The tokens live in
+//  style.css; index.html applies the saved one before the first paint.
+// ---------------------------------------------------------------------
+const THEMES = [
+  { id: "camera", name: "Camera oscura", font: '"IBM Plex Mono", monospace',
+    colors: ["#ff3b2e", "#ffb0a6", "#44120e"] },
+  { id: "pellicola", name: "Pellicola", font: '"Space Grotesk", sans-serif',
+    colors: ["#ffad1f", "#f4ead6", "#3c3119"] },
+  { id: "ghiaccio", name: "Ghiaccio", font: '"Inter", sans-serif',
+    colors: ["#3fe0cf", "#e4f4f3", "#1e3a3f"] },
+  { id: "vetro", name: "Vetro", font: '"Manrope", sans-serif',
+    colors: ["linear-gradient(145deg,#fff,#9fd6ff)", "rgba(255,255,255,.5)", "rgba(255,255,255,.2)"] },
+  { id: "luci", name: "Luci rosse", font: '"Mr Dafoe", cursive',
+    colors: ["#ff1a3c", "#ff2d8a", "#ffd6e7"] },
+  { id: "atelier", name: "Atelier", font: '"Cormorant Garamond", serif',
+    colors: ["linear-gradient(135deg,#a8822f,#f3dc9f,#a8822f)", "#f3ece0", "#3a3428"] },
+  { id: "galleria", name: "Galleria", font: '"Archivo", sans-serif',
+    colors: ["#ffffff", "#9a9a9a", "#3a3a3a"] },
+  { id: "festa", name: "Festa", font: '"Fredoka", sans-serif',
+    colors: ["#ff5fa2", "#ffd23f", "#3fd0ff"] },
+  { id: "boudoir", name: "Boudoir", font: '"Cormorant Garamond", serif',
+    colors: ["#e8a0a8", "#b4687a", "#f6e4e4"] },
+];
+
+const currentTheme = () => document.documentElement.dataset.theme || "camera";
+
+function applyTheme(id) {
+  if (id === "camera") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = id;
+  try { localStorage.setItem("kiosk.theme", id); } catch (e) {}
+  renderThemeBar();
+}
+
+function renderThemeBar() {
+  const bar = document.getElementById("themeBar");
+  bar.replaceChildren();
+  for (const t of THEMES) {
+    const b = document.createElement("button");
+    b.className = "theme-opt" + (t.id === currentTheme() ? " active" : "");
+    b.innerHTML = `<span class="theme-swatch">${t.colors.map(c => `<i style="background:${c}"></i>`).join("")}</span>` +
+                  `<span style="font-family:${t.font.replace(/"/g, "'")}">${t.name}</span>`;
+    b.addEventListener("click", () => applyTheme(t.id));
+    bar.append(b);
+  }
+}
+
 function showTab(id) {
   for (const t of document.querySelectorAll(".sb-tab"))
     t.classList.toggle("active", t.dataset.tab === id);
@@ -2204,6 +2251,10 @@ window.addEventListener("load", () => {
     if (document.getElementById("sidebar").classList.toggle("open")) refreshMosaics();
   });
   document.getElementById("closeSidebar").addEventListener("click", closeSidebar);
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    renderThemeBar();
+    document.getElementById("themeBar").classList.toggle("hidden");
+  });
   document.getElementById("pauseBtn").addEventListener("click", togglePause);
   document.getElementById("nextBtn").addEventListener("click", nextAll);
   document.getElementById("undoBtn").addEventListener("click", undo);

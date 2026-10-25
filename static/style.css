@@ -1,26 +1,325 @@
 /* =====================================================================
-   Video Kiosk — flat and dark: solid surfaces, 1px lines, no shadows,
-   no blur, no gradients. Touch targets are 44px: fingers on a tablet.
+   Video Kiosk — on pure black (AMOLED: black pixels are off). Touch
+   targets are 44px: fingers on a tablet.
+
+   Themes, picked per device (data-theme on <html>), one per kind of
+   shoot the studio shows off. They all share the black; each one sets the
+   tokens below. The flat themes leave the effect tokens at their neutral
+   defaults; the others switch them on. Everything else in this file reads
+   the tokens; never hardcode a colour, a font, a radius or an effect.
+   The effects themselves are applied in one place: THEME EFFECTS, at the
+   end of the file.
    ===================================================================== */
 
+/* Camera oscura (default): the darkroom safelight. Everything is red,
+   text included, so the screen never dazzles eyes used to the dark. */
 :root {
   --bg: #000;
-  --panel: #141416;
-  --panel-2: #1d1d20;
-  --panel-3: #2a2a2e;
-  --line: #2a2a2e;
-  --line-strong: #3a3a40;
-  --text: #f0f0f2;
-  --text-2: #a8a8b0;
-  --text-3: #6e6e78;
-  --accent: #8ea8ff;
-  --accent-ink: #0a1020;
-  --accent-dim: rgba(142, 168, 255, 0.16);
-  --scrim: rgba(0, 0, 0, 0.78);
+  --panel: #050101;
+  --panel-2: #100303;
+  --panel-3: #1f0605;
+  --line: #2a0b09;
+  --line-strong: #44120e;
+  --text: #ffb0a6;
+  --text-2: #c56a60;
+  --text-3: #7c3a33;
+  --accent: #ff3b2e;
+  --accent-2: var(--accent);
+  --accent-ink: #1a0200;
+  --accent-dim: rgba(255, 59, 46, 0.14);
+  --accent-soft: rgba(70, 8, 4, 0.92);
+  --accent-fill: var(--accent);       /* solid accent backgrounds; may be a gradient */
+  --surface: var(--panel);            /* floating surfaces; may be a gradient */
+  --scrim: rgba(0, 0, 0, 0.8);
+  --font: "IBM Plex Mono", ui-monospace, monospace;
+  --font-size: 13px;
+  --font-display: var(--font);        /* tabs, section labels, dialog titles */
+  --tab-size: 14px;
+  --label-size: 13px;
+  --label-transform: none;
+  --label-spacing: normal;
+  --label-style: normal;
+  --font-title: var(--font);          /* the start screen title */
+  --title-size: 28px;
+  --title-weight: 600;
+  --title-style: normal;
+  --title-spacing: -0.02em;
+  --title-transform: none;
+  --title-color: var(--accent);
+  --title-fill: none;                 /* a gradient here paints the title text */
+  --title-anim: none;
+  /* Effects: neutral by default ("0 0 #0000" is a shadow that draws
+     nothing, so these can be combined in one box-shadow list). */
+  --blur: none;                       /* backdrop-filter of floating surfaces */
+  --sheen: 0 0 #0000;                 /* box-shadow of floating surfaces */
+  --sheen-sm: 0 0 #0000;              /* box-shadow of controls */
+  --neon: 0 0 #0000;                  /* box-shadow of accented, active things */
+  --glow: 0 0 #0000;                  /* text-shadow of accented text */
   --hit: 44px;
+  --r-sm: 2px;
+  --r-md: 3px;
+  --r-lg: 4px;
+  --r-btn: var(--r-sm);               /* buttons, tabs, chips */
+}
+
+/* Pellicola: warm amber of film and tungsten, paper-coloured text,
+   soft corners. */
+:root[data-theme="pellicola"] {
+  --panel: #050403;
+  --panel-2: #0f0c06;
+  --panel-3: #1e170b;
+  --line: #262012;
+  --line-strong: #3c3119;
+  --text: #f4ead6;
+  --text-2: #b5a283;
+  --text-3: #6f624d;
+  --accent: #ffad1f;
+  --accent-ink: #1c1100;
+  --accent-dim: rgba(255, 173, 31, 0.14);
+  --accent-soft: rgba(58, 38, 4, 0.92);
+  --font: "Space Grotesk", system-ui, sans-serif;
+  --font-size: 14px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+}
+
+/* Ghiaccio: cool cyan, quiet and precise. */
+:root[data-theme="ghiaccio"] {
+  --panel: #020404;
+  --panel-2: #071111;
+  --panel-3: #0e1f1e;
+  --line: #12262a;
+  --line-strong: #1e3a3f;
+  --text: #e4f4f3;
+  --text-2: #8eaaa8;
+  --text-3: #536966;
+  --accent: #3fe0cf;
+  --accent-ink: #00201c;
+  --accent-dim: rgba(63, 224, 207, 0.13);
+  --accent-soft: rgba(4, 44, 41, 0.92);
+  --font: "Inter", system-ui, sans-serif;
+  --font-size: 14px;
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 10px;
+}
+
+/* Vetro: liquid glass, after Apple's. Floating surfaces are a lens: a
+   thin luminous veil (light from the top-left, bouncing back bottom-
+   right), a strong blur that saturates and lifts what is behind (the
+   videos), a specular rim on the edge, a soft drop for depth. Controls
+   are capsules; the primary one is a glossy white pill. On pure black
+   there is nothing to see through: the effect lives over the video.
+   The heaviest theme for the GPU. */
+:root[data-theme="vetro"] {
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel-2: rgba(255, 255, 255, 0.11);
+  --panel-3: rgba(255, 255, 255, 0.19);
+  --line: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.26);
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.74);
+  --text-3: rgba(255, 255, 255, 0.46);
+  --accent: #9fd6ff;
+  --accent-ink: #04121c;
+  --accent-dim: rgba(255, 255, 255, 0.16);
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --accent-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(214, 234, 255, 0.82));
+  --surface: linear-gradient(145deg, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.06) 38%,
+                             rgba(255, 255, 255, 0.025) 62%, rgba(255, 255, 255, 0.10) 100%);
+  --scrim: linear-gradient(180deg, rgba(20, 22, 30, 0.12), rgba(20, 22, 30, 0.38));
+  --font: "Manrope", system-ui, sans-serif;
+  --font-size: 14px;
+  --title-weight: 700;
+  --title-color: #fff;
+  --blur: blur(18px) saturate(2.2) brightness(1.12);
+  --sheen: inset 1.5px 1.5px 0 -0.5px rgba(255, 255, 255, 0.6),
+           inset -1px -1px 0 -0.5px rgba(255, 255, 255, 0.25),
+           inset 0 0 24px rgba(255, 255, 255, 0.07),
+           0 12px 40px rgba(0, 0, 0, 0.45);
+  --sheen-sm: inset 1px 1px 0 rgba(255, 255, 255, 0.5),
+              inset -1px -1px 0 rgba(255, 255, 255, 0.14),
+              0 2px 10px rgba(0, 0, 0, 0.25);
+  --glow: 0 1px 12px rgba(255, 255, 255, 0.35);
+  --r-sm: 16px;
+  --r-md: 22px;
+  --r-lg: 28px;
+  --r-btn: 999px;
+}
+
+/* Luci rosse: the neon of a sexy shop at night. Lipstick red melting
+   into hot pink, velvet blacks, tubes that glow, a script sign that
+   breathes (and now and then flickers). */
+:root[data-theme="luci"] {
+  --panel: #070004;
+  --panel-2: #13000a;
+  --panel-3: #260012;
+  --line: #3d0420;
+  --line-strong: #66072f;
+  --text: #ffd6e7;
+  --text-2: #f07aa8;
+  --text-3: #94405f;
+  --accent: #ff2d8a;
+  --accent-2: #ff1a3c;
+  --accent-ink: #200008;
+  --accent-dim: rgba(255, 45, 138, 0.16);
+  --accent-soft: rgba(60, 0, 24, 0.92);
+  --accent-fill: linear-gradient(90deg, #ff1a3c, #ff2d8a);
+  --surface: radial-gradient(130% 90% at 0% 0%, rgba(255, 26, 60, 0.12), transparent 60%),
+             radial-gradient(100% 80% at 100% 100%, rgba(255, 45, 138, 0.08), transparent 60%),
+             #070004;
+  --font: "Space Grotesk", system-ui, sans-serif;
+  --font-size: 14px;
+  --font-display: "Bebas Neue", "Space Grotesk", sans-serif;
+  --tab-size: 19px;
+  --label-size: 17px;
+  --label-spacing: 0.06em;
+  --font-title: "Mr Dafoe", "Bebas Neue", cursive;
+  --title-size: 76px;
+  --title-weight: 400;
+  --title-spacing: 0;
+  --title-anim: breathe 4s ease-in-out infinite, neon 9s infinite;
+  --neon: 0 0 0 1px rgba(255, 90, 165, 0.95), 0 0 8px rgba(255, 45, 138, 0.8),
+          0 0 22px rgba(255, 26, 60, 0.55), 0 0 44px rgba(255, 26, 60, 0.25);
+  --glow: 0 0 4px rgba(255, 130, 185, 0.9), 0 0 14px rgba(255, 45, 138, 0.8),
+          0 0 32px rgba(255, 26, 60, 0.6);
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-btn: 999px;
+}
+
+/* Atelier: haute couture. Black and champagne gold, a fashion-house serif
+   with spaced capitals, gold-foil fills, square corners, nothing else. */
+:root[data-theme="atelier"] {
+  --panel: #050505;
+  --panel-2: #0d0c0a;
+  --panel-3: #1a1814;
+  --line: #24211b;
+  --line-strong: #3a3428;
+  --text: #f3ece0;
+  --text-2: #b8ab92;
+  --text-3: #6e6655;
+  --accent: #d7b46a;
+  --accent-ink: #1a1203;
+  --accent-dim: rgba(215, 180, 106, 0.13);
+  --accent-soft: rgba(40, 30, 10, 0.92);
+  --accent-fill: linear-gradient(135deg, #a8822f, #f3dc9f 48%, #c49a48 52%, #a8822f);
+  --font: "Jost", system-ui, sans-serif;
+  --font-size: 14px;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --tab-size: 17px;
+  --label-size: 12px;
+  --label-transform: uppercase;
+  --label-spacing: 0.24em;
+  --font-title: "Cormorant Garamond", Georgia, serif;
+  --title-size: 38px;
+  --title-weight: 500;
+  --title-spacing: 0.32em;
+  --title-transform: uppercase;
+  --title-fill: linear-gradient(135deg, #b8923f, #f6e2a8 50%, #b8923f);
+  --title-color: transparent;
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+}
+
+/* Galleria: product and still life. Black and white only, no colour at
+   all, a tight grotesque: the photos are the only colour on screen. */
+:root[data-theme="galleria"] {
+  --panel: #000000;
+  --panel-2: #0b0b0b;
+  --panel-3: #1c1c1c;
+  --line: #1f1f1f;
+  --line-strong: #3a3a3a;
+  --text: #ffffff;
+  --text-2: #9a9a9a;
+  --text-3: #5a5a5a;
+  --accent: #ffffff;
+  --accent-ink: #000000;
+  --accent-dim: rgba(255, 255, 255, 0.1);
+  --accent-soft: rgba(28, 28, 28, 0.92);
+  --font: "Archivo", system-ui, sans-serif;
+  --font-size: 14px;
+  --label-size: 11px;
+  --label-transform: uppercase;
+  --label-spacing: 0.14em;
+  --title-size: 40px;
+  --title-weight: 800;
+  --title-spacing: -0.045em;
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+}
+
+/* Festa: birthdays and parties. Confetti colours (pink, sun, sky) as a
+   gradient on everything that is "on", a round friendly face, pills, a
+   title that bounces. */
+:root[data-theme="festa"] {
+  --panel: #050308;
+  --panel-2: #0f0a16;
+  --panel-3: #1e1430;
+  --line: #261b38;
+  --line-strong: #3d2c5a;
+  --text: #fff7fb;
+  --text-2: #c7b3dc;
+  --text-3: #7a6a8f;
+  --accent: #ffd23f;
+  --accent-2: #ff5fa2;
+  --accent-ink: #1a0f00;
+  --accent-dim: rgba(255, 95, 162, 0.16);
+  --accent-soft: rgba(50, 20, 60, 0.92);
+  --accent-fill: linear-gradient(90deg, #ff5fa2, #ffd23f, #3fd0ff);
+  --font: "Fredoka", system-ui, sans-serif;
+  --font-size: 15px;
+  --tab-size: 15px;
+  --title-size: 46px;
+  --title-weight: 700;
+  --title-fill: linear-gradient(90deg, #ff5fa2, #ffd23f, #3fd0ff);
+  --title-color: transparent;
+  --title-anim: bounce 2.6s ease-in-out infinite;
+  --r-sm: 14px;
+  --r-md: 18px;
+  --r-lg: 22px;
+  --r-btn: 999px;
+}
+
+/* Boudoir: the artistic nude, not the shop. Antique rose and mauve on
+   black, an italic serif, candlelight around the title. Quiet, warm,
+   intimate. */
+:root[data-theme="boudoir"] {
+  --panel: #060304;
+  --panel-2: #110a0c;
+  --panel-3: #221418;
+  --line: #2a1a1e;
+  --line-strong: #44282f;
+  --text: #f6e4e4;
+  --text-2: #c79ea3;
+  --text-3: #7d5a60;
+  --accent: #e8a0a8;
+  --accent-2: #b4687a;
+  --accent-ink: #24070c;
+  --accent-dim: rgba(232, 160, 168, 0.14);
+  --accent-soft: rgba(45, 18, 24, 0.92);
+  --accent-fill: linear-gradient(135deg, #b4687a, #e8a0a8);
+  --surface: radial-gradient(120% 70% at 50% 0%, rgba(232, 160, 168, 0.06), transparent 70%), #060304;
+  --font: "Cormorant Garamond", Georgia, serif;
+  --font-size: 16px;
+  --tab-size: 18px;
+  --label-size: 16px;
+  --label-style: italic;
+  --font-title: "Cormorant Garamond", Georgia, serif;
+  --title-size: 52px;
+  --title-weight: 400;
+  --title-style: italic;
+  --title-spacing: 0.01em;
+  --title-anim: breathe 6s ease-in-out infinite;
+  --glow: 0 0 22px rgba(232, 160, 168, 0.35);
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-btn: 999px;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -30,8 +329,8 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 14px;
+  font-family: var(--font);
+  font-size: var(--font-size);
   overflow: hidden;
   user-select: none;
   font-feature-settings: "tnum";
@@ -71,6 +370,7 @@ button {
 }
 .start-inner h1 {
   margin: 0;
+  color: var(--accent);
   font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -190,6 +490,38 @@ button {
   flex: none;
 }
 .sb-tabs { display: flex; gap: 4px; flex: 1; }
+
+/* theme picker, under the drawer header */
+.theme-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  flex: none;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.theme-opt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  text-align: left;
+}
+.theme-opt.active { border-color: var(--accent); color: var(--text); }
+.theme-opt span:last-child { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.theme-swatch { display: flex; gap: 4px; }
+.theme-swatch i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+}
 .sb-tab {
   height: var(--hit);
   padding: 0 16px;
@@ -401,7 +733,7 @@ button {
   position: relative;
   overflow: hidden;
   border-radius: var(--r-sm);
-  background: #0a0a0b;
+  background: var(--panel);
 }
 .grid-stack-item-content video {
   position: absolute;
@@ -570,7 +902,7 @@ button {
   background: var(--panel-3);
 }
 .tl-sel { background: var(--text-3); }
-.tl-sel.cut { background: var(--accent); }
+.tl-sel.cut { background: var(--accent-fill); }
 .tl-head {
   position: absolute;
   top: 10px;
@@ -587,7 +919,7 @@ button {
   margin-left: -6px;
   border: 2px solid var(--bg);
   border-radius: var(--r-sm);
-  background: var(--accent);
+  background: var(--accent-fill);
 }
 .tl-time {
   flex: none;
@@ -628,7 +960,7 @@ button {
   background: var(--panel-2);
 }
 .dur-opt:hover, .dur-opt:active { background: var(--panel-3); color: var(--text); }
-.dur-opt.active { background: var(--accent); color: var(--accent-ink); }
+.dur-opt.active { background: var(--accent-fill); color: var(--accent-ink); }
 
 .tile-spinner {
   position: absolute;
@@ -673,7 +1005,7 @@ button {
   position: absolute;
   overflow: hidden;
   border-radius: var(--r-sm);
-  background: #0a0a0b;
+  background: var(--panel);
   opacity: 0;
   transition: left 0.7s ease, top 0.7s ease, width 0.7s ease, height 0.7s ease,
               opacity 0.7s ease;
@@ -801,7 +1133,7 @@ body.smart-on #audioBtn { display: none; }
 .sm-bar > div {
   height: 100%;
   width: 0;
-  background: var(--accent);
+  background: var(--accent-fill);
   transition: width 0.6s ease;
 }
 .sm-bar > div.paused { background: var(--text-3); }
@@ -825,7 +1157,7 @@ body.smart-on #audioBtn { display: none; }
   font-weight: 600;
   color: var(--text-2);
 }
-.sm-speed button.active { background: var(--accent); color: var(--accent-ink); }
+.sm-speed button.active { background: var(--accent-fill); color: var(--accent-ink); }
 .sm-line.dim { font-size: 12.5px; color: var(--text-2); }
 .sm-line:empty { display: none; }
 .sb-tab.drop-target { background: var(--accent-dim); color: var(--accent); outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -841,7 +1173,7 @@ body.smart-on #audioBtn { display: none; }
   gap: 10px;
   border: 2px solid var(--accent);
   border-radius: var(--r-sm);
-  background: rgba(20, 26, 46, 0.92);
+  background: var(--accent-soft);
   color: var(--accent);
   font-size: 15px;
   font-weight: 600;
@@ -920,7 +1252,7 @@ body.smart-on #audioBtn { display: none; }
 }
 .btn.ghost { color: var(--text-2); border: 1px solid var(--line-strong); }
 .btn.ghost:hover, .btn.ghost:active { background: var(--panel-3); color: var(--text); }
-.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary { background: var(--accent-fill); color: var(--accent-ink); }
 .btn.primary:active { opacity: 0.85; }
 
 /* tile editor: settings + file list on the left, preview + cut on the right */
@@ -1028,7 +1360,7 @@ body.smart-on #audioBtn { display: none; }
   flex: none;
   padding: 3px 7px;
   border-radius: var(--r-sm);
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-ink);
   font-size: 11.5px;
   font-weight: 600;
@@ -1083,3 +1415,89 @@ body.smart-on #audioBtn { display: none; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--panel-3); border-radius: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ============ THEME EFFECTS ============ */
+/* The only place where surfaces, effects and type styles of the themes
+   are applied. With the neutral defaults this whole block changes
+   nothing. */
+
+/* Floating surfaces: a lens in "vetro", a velvet light in "luci", plain
+   elsewhere. Blur is not applied to the controls inside them: nested
+   backdrop filters see nothing behind. */
+#topbar, .pop, #sidebar, .tile-durs, .modal, .ed, #toast, .sm-stagebar, .sm-pill {
+  background: var(--surface);
+}
+#topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed, #toast,
+.sm-stagebar, .sm-pill, #drag-ghost, #drop-slot {
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--sheen);
+}
+
+/* Controls: capsules where the theme wants them, a glass rim in "vetro",
+   neon tubes in "luci" when accented or active. */
+.tb-btn, .tile-btn, .tile-pill, .btn, .sb-tab, .crumb, .dur-opt, .sm-speed,
+.sm-speed button, .sb-icon-btn, .tree-action, .tile-scope, .pop-item,
+.ed-scope, .modal input, .theme-opt {
+  border-radius: var(--r-btn);
+}
+.tile-btn, .tile-pill, .tile-scope, .btn.ghost, .ed-scope, .theme-opt, .sm-speed {
+  box-shadow: var(--sheen-sm);
+}
+.sb-tab.active, .pop-item.active, .theme-opt.active, .btn.primary,
+.tile-btn.on, .dur-opt.active, .tl-h, #drop-slot, .tile-scope,
+.sm-speed button.active, .sm-bar > div {
+  box-shadow: var(--neon), var(--sheen-sm);
+}
+.tile-scope, .sb-tab.active, .pop-item.active, .crumb.here, .ed-h, .ed-cut, .tb-btn.on {
+  text-shadow: var(--glow);
+}
+
+/* Type. */
+.sb-tab, .ed-h h4, .modal h4 { font-family: var(--font-display); }
+.sb-tab { font-size: var(--tab-size); }
+.ed-label, .sb-section-h, .tile-durs-title {
+  font-family: var(--font-display);
+  font-size: var(--label-size);
+  font-style: var(--label-style);
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-spacing);
+}
+.start-inner h1 {
+  font-family: var(--font-title);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  font-style: var(--title-style);
+  letter-spacing: var(--title-spacing);
+  text-transform: var(--title-transform);
+  color: var(--title-color);
+  background: var(--title-fill);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: var(--glow);
+  animation: var(--title-anim);
+}
+/* A gradient-painted title can't carry a text-shadow (it would show
+   through the transparent text). */
+:root[data-theme="atelier"] .start-inner h1,
+:root[data-theme="festa"] .start-inner h1 { text-shadow: none; }
+
+/* a sign with a tired tube: mostly on, now and then a flicker */
+@keyframes neon {
+  0%, 18%, 22%, 60%, 64%, 100% { opacity: 1; }
+  20%, 62% { opacity: 0.35; }
+}
+@keyframes breathe {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Rounder tiles where the theme is round. */
+:root[data-theme="vetro"] .grid-stack-item-content,
+:root[data-theme="vetro"] .sm-cell,
+:root[data-theme="festa"] .grid-stack-item-content,
+:root[data-theme="festa"] .sm-cell { border-radius: var(--r-md); }

@@ -53,29 +53,26 @@ VIDEO_DIR=/path/to/your/videos
 PORT=8080
 ```
 
-Then use the published image:
-
-```yaml
-services:
-  video-kiosk:
-    image: ghcr.io/jasoc/video-kiosk:0.0.2
-    container_name: video-kiosk
-    restart: unless-stopped
-    ports:
-      - "${PORT}:8080"
-    volumes:
-      - ${VIDEO_DIR}:/app/videos
-      - proxies:/app/proxies
-      - data:/app/data
-
-volumes:
-  proxies:   # low-res copies for mosaics, rebuilt on demand
-  data:      # saved mosaics (JSON files) — keep this one
-```
+Then use the published image (`compose-ghcr.yaml`):
 
 ```bash
 docker compose -f compose-ghcr.yaml up -d
 ```
+
+It runs `ghcr.io/jasoc/video-kiosk:latest` (the last release) with three volumes: your
+videos, `proxies` (low-res copies and thumbnails, safe to delete) and `data` (saved
+mosaics and video analyses — keep it). Set `KIOSK_IMAGE` in `.env` to run another tag.
+
+### Image tags
+
+| Tag | What it is |
+|---|---|
+| `latest`, `X.Y.Z`, `X.Y`, `X` | a release, published when a `vX.Y.Z` git tag is pushed |
+| `X.Y.Z-rc.N` | a pre-release (`latest` doesn't move) |
+| `edge`, `sha-<short>` | every push to `main` that touches the image |
+| `br-<branch>`, `sha-<short>` | a manual run of the workflow on a branch |
+
+To release: `git tag v0.1.0 && git push origin v0.1.0`.
 
 Open `http://<host>:${PORT}` on the kiosk device and put the browser in fullscreen.
 

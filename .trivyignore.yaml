@@ -1,0 +1,12 @@
+# Findings Trivy reports that are deliberate, each with the reason. Keep this list short and
+# justified; an entry that stops being true should be deleted, not renewed by habit.
+
+misconfigurations:
+  # DS-0002: "Dockerfile has no non-root USER".
+  - id: DS-0002
+    paths:
+      - Dockerfile
+    statement: >
+      The kiosk writes proxies, thumbnails, analyses and mosaics into volumes and bind mounts
+      whose ownership is the host's business; running as root keeps them writable on any
+      host without a uid dance. It never writes to the video library and exposes no shell.

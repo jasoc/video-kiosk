@@ -1,10 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>Video Kiosk</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Fredoka:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Jost:wght@400;500;600&family=Manrope:wght@400;500;600;700&family=Mr+Dafoe&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // Apply the saved theme before the first paint (no flash of the default).
+    try { const t = localStorage.getItem("kiosk.theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -68,8 +72,10 @@
         <button class="sb-tab" data-tab="mos">Mosaici</button>
         <button class="sb-tab" data-tab="smart">Regia</button>
       </div>
+      <button id="themeBtn" class="tb-btn" title="Tema"><span class="material-icons-round">palette</span></button>
       <button id="closeSidebar" class="tb-btn" title="Chiudi"><span class="material-icons-round">close</span></button>
     </header>
+    <div id="themeBar" class="theme-bar hidden"></div>
 
     <section id="tab-lib" class="sb-panel">
       <div class="lib-bar">

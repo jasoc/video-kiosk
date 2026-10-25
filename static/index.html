@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>Video Kiosk</title>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Bodoni+Moda:ital,wght@0,400;0,500;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Fredoka:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Jost:wght@400;500;600&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Bodoni+Moda:ital,wght@0,400;0,500;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Fredoka:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Jost:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>
     // Apply the saved theme before the first paint (no flash of the default).
     try { const t = localStorage.getItem("kiosk.theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
@@ -18,9 +19,20 @@
 </head>
 <body>
 
+  <!-- The logo, drawn in the theme's accent wherever it is <use>d -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="logo" viewBox="0 0 32 32">
+      <path fill="currentColor" fill-rule="evenodd"
+            d="M8 5h8a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3zM10 11.5v9l6.5-4.5z"/>
+      <rect x="21" y="5" width="6" height="10" rx="2.5" fill="currentColor" opacity="0.85"/>
+      <rect x="21" y="17" width="6" height="10" rx="2.5" fill="currentColor" opacity="0.55"/>
+    </symbol>
+  </svg>
+
   <!-- Start / idle overlay (also provides the user gesture for unmuted autoplay) -->
   <div id="start-screen">
     <div class="start-inner">
+      <svg class="logo start-logo" viewBox="0 0 32 32" aria-hidden="true"><use href="#logo"/></svg>
       <h1>Video Kiosk</h1>
       <p>Tocca per iniziare</p>
       <span class="start-sub">Tieni premuto un elemento della libreria e trascinalo per comporre un mosaico</span>
@@ -33,7 +45,7 @@
       <button id="menuBtn" class="tb-btn" title="Libreria">
         <span class="material-icons-round">menu</span>
       </button>
-      <span id="tb-title">Video Kiosk</span>
+      <span id="tb-logo" title="Video Kiosk"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><use href="#logo"/></svg></span>
     </div>
     <div class="tb-sep"></div>
     <div class="tb-group">
@@ -206,7 +218,7 @@
           </div>
         </div>
         <div class="ed-edit">
-          <video id="edVideo" muted playsinline preload="auto"></video>
+          <video id="edVideo" muted playsinline preload="auto" disablepictureinpicture disableremoteplayback></video>
           <div class="ed-bar">
             <div id="edTrack"></div>
             <span id="edTime" class="tl-time"></span>

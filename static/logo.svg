@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Video Kiosk: a mosaic of three tiles, the big one playing. -->
+  <rect width="32" height="32" rx="7" fill="#000"/>
+  <path fill="#ff3b2e" fill-rule="evenodd"
+        d="M8 5h8a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3zM10 11.5v9l6.5-4.5z"/>
+  <rect x="21" y="5" width="6" height="10" rx="2.5" fill="#ff3b2e" opacity="0.85"/>
+  <rect x="21" y="17" width="6" height="10" rx="2.5" fill="#ff3b2e" opacity="0.55"/>
+</svg>

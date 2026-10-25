@@ -216,6 +216,7 @@ const Smart = (() => {
       v.playsInline = true;
       v.preload = "auto";
       v.muted = true;
+      noOverlays(v);
       return v;
     }
 
@@ -692,6 +693,7 @@ const Smart = (() => {
     $("smDensity").value = cfg.density;
     $("smDensityLabel").textContent = `fino a ${cfg.density}`;
     $("smVolume").value = Math.round(cfg.volume * 100);
+    for (const id of ["smRhythm", "smDensity", "smVolume"]) paintRange($(id));
     $("smVolumeLabel").textContent = Math.round(cfg.volume * 100) + "%";
     $("smStart").textContent = active ? "Ferma la regia" : "Avvia la regia";
     $("smStart").classList.toggle("primary", !active);

@@ -56,6 +56,7 @@
   --neon: 0 0 #0000;                  /* box-shadow of accented, active things */
   --glow: 0 0 #0000;                  /* text-shadow of accented text */
   --hit: 44px;
+  --tile-hit: 56px;                   /* controls inside tiles: bigger, for fingers */
   --r-sm: 2px;
   --r-md: 3px;
   --r-lg: 4px;
@@ -129,9 +130,14 @@
   --surface: linear-gradient(145deg, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.06) 38%,
                              rgba(255, 255, 255, 0.025) 62%, rgba(255, 255, 255, 0.10) 100%);
   --scrim: linear-gradient(180deg, rgba(20, 22, 30, 0.12), rgba(20, 22, 30, 0.38));
-  --font: "Manrope", system-ui, sans-serif;
+  /* Apple's own face where there is one (San Francisco), Inter (its
+     closest free cousin) elsewhere. A professional theme: no character of
+     its own, the work is the character. */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
   --font-size: 14px;
-  --title-weight: 700;
+  --font-title: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --title-weight: 600;
+  --title-spacing: -0.03em;
   --title-color: #fff;
   --blur: blur(18px) saturate(2.2) brightness(1.12);
   --sheen: inset 1.5px 1.5px 0 -0.5px rgba(255, 255, 255, 0.6),
@@ -142,6 +148,8 @@
               inset -1px -1px 0 rgba(255, 255, 255, 0.14),
               0 2px 10px rgba(0, 0, 0, 0.25);
   --glow: 0 1px 12px rgba(255, 255, 255, 0.35);
+  --thumb: linear-gradient(180deg, #ffffff, #e9edf3);
+  --thumb-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
   --r-sm: 16px;
   --r-md: 22px;
   --r-lg: 28px;
@@ -416,12 +424,11 @@ button {
 }
 .tb-group { display: flex; align-items: center; gap: 2px; }
 .tb-sep { width: 1px; height: 26px; background: var(--line); }
-#tb-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 10px 0 4px;
-  white-space: nowrap;
-}
+/* the logo (an inline <use> of #logo): drawn in the theme's accent */
+.logo { display: block; color: var(--accent); }
+#tb-logo { display: grid; place-items: center; width: var(--hit); height: var(--hit); }
+#tb-logo .logo { width: 28px; height: 28px; }
+.start-logo { width: 72px; height: 72px; margin-bottom: 10px; }
 
 .tb-btn {
   display: grid;
@@ -756,8 +763,8 @@ button {
 .tile-resize {
   position: absolute;
   z-index: 30;
-  width: 34px;
-  height: 34px;
+  width: 48px;
+  height: 48px;
   display: none;
   touch-action: none;
 }
@@ -773,10 +780,11 @@ button {
 .tile-resize.ne { right: 0; top: 0; cursor: ne-resize; }
 .tile-resize.sw { left: 0; bottom: 0; cursor: sw-resize; }
 .tile-resize.se { right: 0; bottom: 0; cursor: se-resize; }
-.tile-resize.nw::after { left: 8px; top: 8px; border-left-width: 3px; border-top-width: 3px; }
-.tile-resize.ne::after { right: 8px; top: 8px; border-right-width: 3px; border-top-width: 3px; }
-.tile-resize.sw::after { left: 8px; bottom: 8px; border-left-width: 3px; border-bottom-width: 3px; }
-.tile-resize.se::after { right: 8px; bottom: 8px; border-right-width: 3px; border-bottom-width: 3px; }
+.tile-resize::after { width: 18px; height: 18px; }
+.tile-resize.nw::after { left: 9px; top: 9px; border-left-width: 4px; border-top-width: 4px; }
+.tile-resize.ne::after { right: 9px; top: 9px; border-right-width: 4px; border-top-width: 4px; }
+.tile-resize.sw::after { left: 9px; bottom: 9px; border-left-width: 4px; border-bottom-width: 4px; }
+.tile-resize.se::after { right: 9px; bottom: 9px; border-right-width: 4px; border-bottom-width: 4px; }
 
 /* tile under a dragged library entry: dropping mixes it in */
 .grid-stack-item.drop-target > .grid-stack-item-content::after {
@@ -824,13 +832,13 @@ button {
   align-items: center;
   gap: 6px;
   max-width: 60%;
-  height: 32px;
-  padding: 0 10px;
+  height: var(--hit);
+  padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   background: var(--panel-2);
   color: var(--accent);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 .tile-scope span:last-child {
@@ -838,7 +846,7 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tile-scope .material-icons-round { font-size: 16px; }
+.tile-scope .material-icons-round { font-size: 20px; }
 .tile-scope:active { background: var(--panel-3); }
 .tile-file {
   min-width: 0;
@@ -850,33 +858,34 @@ button {
 }
 
 /* side padding keeps the bottom buttons clear of the resize corners */
-.tile-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 0 26px; }
+.tile-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0 40px; }
 .tile-spacer { flex: 1; }
 
 .tile-btn {
   flex: none;
   display: grid;
   place-items: center;
-  width: var(--hit);
-  height: var(--hit);
+  width: var(--tile-hit);
+  height: var(--tile-hit);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--panel-2);
   color: var(--text);
 }
+.tile-btn .material-icons-round { font-size: 28px; }
 .tile-btn:hover, .tile-btn:active { background: var(--panel-3); }
 .tile-btn.on { color: var(--accent); border-color: var(--accent); }
 
 .tile-pill {
   flex: none;
-  height: var(--hit);
-  min-width: 56px;
-  padding: 0 12px;
+  height: var(--tile-hit);
+  min-width: 68px;
+  padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--panel-2);
   color: var(--text);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
 }
 .tile-pill:hover, .tile-pill:active { background: var(--panel-3); }
@@ -1097,12 +1106,7 @@ body.smart-on #audioBtn { display: none; }
   border-bottom: 1px solid var(--line);
 }
 .sm-sec .sb-hint { margin: 0; }
-.sm-sec input[type="range"] {
-  width: 100%;
-  height: 36px;
-  margin: 0 0 4px;
-  accent-color: var(--accent);
-}
+
 .sm-empty { margin: 0; font-size: 13px; color: var(--text-3); }
 .sm-cov {
   flex: none;
@@ -1319,12 +1323,7 @@ body.smart-on #audioBtn { display: none; }
 }
 .ed-scope:not(:has(button)) { padding-right: 12px; }
 .ed-scope .material-icons-round { font-size: 18px; color: var(--text-3); }
-.ed-sec input[type="range"] {
-  width: 100%;
-  height: var(--hit);
-  margin: 0;
-  accent-color: var(--accent);
-}
+
 .ed-files { flex: 1; min-height: 0; border-bottom: none; padding-bottom: 0; }
 .ed-list {
   flex: 1;
@@ -1398,6 +1397,48 @@ body.smart-on #audioBtn { display: none; }
   .ed-side { width: auto; height: 50%; border-right: none; border-top: 1px solid var(--line); }
 }
 
+/* ============ SLIDERS ============ */
+/* A thin track, filled with the accent up to the value (--fill, set by
+   paintRange() in script.js), and a round thumb. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--hit);
+  margin: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--fill, 50%), var(--panel-3) var(--fill, 50%));
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--fill, 50%), var(--panel-3) var(--fill, 50%));
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--thumb, var(--accent));
+  box-shadow: var(--thumb-shadow, 0 0 #0000);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: var(--thumb, var(--accent));
+  box-shadow: var(--thumb-shadow, 0 0 #0000);
+}
+
 /* ============ TOAST ============ */
 #toast {
   position: fixed;
@@ -1427,6 +1468,13 @@ body.smart-on #audioBtn { display: none; }
    backdrop filters see nothing behind. */
 #topbar, .pop, #sidebar, .tile-durs, .modal, .ed, #toast, .sm-stagebar, .sm-pill {
   background: var(--surface);
+}
+/* Each surface states its text colour: children inherit the *computed*
+   colour, so without this a --text adapted on the surface (vetro) would
+   never reach text that has no colour rule of its own. */
+#topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed, #toast,
+.sm-stagebar, .sm-pill {
+  color: var(--text);
 }
 #topbar, .pop, #sidebar, .tile-overlay, .tile-durs, .modal, .ed, #toast,
 .sm-stagebar, .sm-pill, #drag-ghost, #drop-slot {
@@ -1496,6 +1544,32 @@ body.smart-on #audioBtn { display: none; }
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
+}
+
+/* Adaptive glass (script.js, "vetro" only) sets --text*, --accent and the
+   surface tokens on each floating surface from what is under it. Text and
+   accent fade between appearances; they are registered so they can. */
+@property --text { syntax: "<color>"; inherits: true; initial-value: #fff; }
+@property --text-2 { syntax: "<color>"; inherits: true; initial-value: #fff; }
+@property --text-3 { syntax: "<color>"; inherits: true; initial-value: #fff; }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #fff; }
+:root[data-theme="vetro"] #topbar {
+  transition: opacity 0.25s, transform 0.25s, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+:root[data-theme="vetro"] #sidebar {
+  transition: transform 0.25s ease-out, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+:root[data-theme="vetro"] .tile-overlay,
+:root[data-theme="vetro"] .sm-stagebar {
+  transition: opacity 0.15s, --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
+}
+:root[data-theme="vetro"] .pop,
+:root[data-theme="vetro"] #toast,
+:root[data-theme="vetro"] .sm-pill,
+:root[data-theme="vetro"] .modal,
+:root[data-theme="vetro"] .ed,
+:root[data-theme="vetro"] .tile-durs {
+  transition: --text 0.45s, --text-2 0.45s, --text-3 0.45s, --accent 0.45s;
 }
 
 /* Rounder tiles where the theme is round. */

@@ -43,6 +43,7 @@ a single Docker container with a host directory of videos bind-mounted into it.
 | `static/index.html` | Full DOM skeleton. All UI elements exist up-front; JS only fills the tree, the mosaic list, and the grid. |
 | `static/script.js` | Mosaic client logic: `Tile` playback engine, GridStack management, layout presets, saved mosaics, library, drag interaction. |
 | `static/smart.js` | The regia (smart mosaic): its own stage, cells, layout tree and director. Loaded after `script.js`, whose helpers it uses (section 4.12). |
+| `static/logo.svg` | The logo (favicon). In the UI the same shape is an inline `<symbol id="logo">` in `index.html`, drawn in the theme's accent (`currentColor`). |
 | `static/style.css` | All styling. Dark, hairline-bordered, "enterprise minimal". |
 | `Dockerfile` | `python:3.12-alpine` + `ffmpeg` (needed for `ffprobe`). |
 | `compose.yaml` | Local dev: builds the image, bind-mounts the repo for live editing. |
@@ -515,7 +516,7 @@ an inline script in `<head>` before the first paint). They all share the black:
 | `camera` (default, `:root`) | the darkroom itself | safelight red, **text red too** | IBM Plex Mono | 2–4 px |
 | `pellicola` | film, warm work | amber, paper text | Space Grotesk | 10–18 px |
 | `ghiaccio` | anything, quietly | cyan | Inter | 6–10 px |
-| `vetro` | showpiece | Apple-style liquid glass: lens surfaces, blur + saturate + brighten, specular rims, glossy white primary pill | Manrope | 16–28 px, capsules |
+| `vetro` | professionals ("no theme") | Apple-style liquid glass: lens surfaces, blur + saturate + brighten, specular rims; **adaptive**: each surface turns light/dark and takes the complementary accent of the footage under it | system font (San Francisco), Inter elsewhere | 16–28 px, capsules |
 | `luci` | nude ("naked") | skin tones cocoa → peach, dim red light from above, soft red halo | Jost, Bodoni Moda italic (titles, tabs, labels) | capsules |
 | `atelier` | luxury, haute couture | black + champagne gold foil, spaced capitals | Jost, Cormorant Garamond | square |
 | `galleria` | products, still life | black and white only, no colour | Archivo | square |
@@ -542,14 +543,39 @@ live there too). Blur is not applied to controls *inside* a blurred surface (nes
 backdrop filters see nothing). `vetro` costs GPU time on a tablet that is also decoding
 video — if the mosaic stutters with it, that's why.
 
+**Adaptive glass** (`syncGlass()` / `glassTick()` in `script.js`, only while `vetro` is
+active): every 500 ms each visible floating surface (`GLASS_SURFACES`) draws the
+`video.front` elements under it into a 32×18 canvas (mapping object-fit, counting
+uncovered area as black) and averages the colour. Over bright footage it switches to
+the light appearance (`GLASS_LIGHT` tokens set inline on that element: dark text, milky
+surface), over dark footage it removes them; the switch has hysteresis (0.45 / 0.58
+luminance) so mid-grey footage doesn't flicker. `--accent` becomes the complement of
+the colour behind (calm blue when it is neutral). `--text*` and `--accent` are
+registered with `@property` so they fade. Leaving the theme removes every inline token.
+
 Never hardcode a colour, a font, a radius or an effect at a call site; a new token
 needs a neutral default in `:root`. Only theme-neutral black veils (`rgba(0,0,0,…)`)
 are written inline. `THEMES` in `script.js` repeats three colours per theme for the
 picker's swatches only (keep it in sync when adding a theme).
 
+**Text colour on surfaces.** Children inherit the *computed* `color`, so every floating
+surface states `color: var(--text)` itself (THEME EFFECTS block); otherwise a `--text`
+adapted on the surface (vetro) never reaches text without a colour rule of its own.
+
+**Sliders** have one style for every theme: thin track filled with the accent up to the
+value (`--fill`, kept by `paintRange()` — a document-level `input` listener, plus a call
+wherever a slider's value is set from code), round thumb (`--thumb`, `--thumb-shadow`;
+vetro makes it a white glossy knob).
+
+**Videos never show browser overlays**: `noOverlays()` disables picture-in-picture and
+remote playback (cast) on every `<video>` we create, because the tablet's browser draws
+those buttons on top of the tiles and they stole taps from our controls.
+
 Conventions to preserve:
 
-- Touch targets are `--hit` (44 px) — this runs on a tablet, driven by fingers.
+- Touch targets are `--hit` (44 px) — this runs on a tablet, driven by fingers. Controls
+  *inside tiles* are bigger, `--tile-hit` (56 px), with 48 px resize corners and a bar
+  padded clear of them; the tile overlay stays up 5 s.
 - Tile controls sit on a solid scrim band (`--scrim`) and wrap on narrow tiles.
 - Dark only. There is no light theme and none is wanted.
 

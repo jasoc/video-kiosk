@@ -13,10 +13,13 @@ The result, one small JSON per file under DATA_DIR/analysis (named by
 library.file_key, so it survives renames and is redone if the file
 changes), describes the file's real orientation and its list of shots.
 
-One worker thread, ffmpeg under `nice`, files queued on demand (the folders
-the regia is using first). Pausing kills the running ffmpeg and puts that
-file back at the front of the queue. Everything here is metadata: the
-in-memory state is a queue of paths and a few counters.
+Files are queued on demand (the folders the regia is using first). Two
+speeds, chosen from the UI and kept on disk: "low" (the default) runs one
+file at a time under `nice` with 2 ffmpeg threads, so the box stays
+responsive; "high" runs up to MAX_WORKERS files at once at normal priority,
+for the first big pass over a library. Pausing kills the running ffmpegs
+and puts those files back at the front of the queue. Everything here is
+metadata: the in-memory state is a queue of paths and a few counters.
 """
 
 import collections
@@ -41,19 +44,25 @@ SAMPLE_W = 160
 SCENE_CUT = 0.30        # scene_score at or above this is a cut
 MIN_SHOT = 1.5          # shorter shots are merged into the previous one
 POOL_MAX = 400          # files sent to the client per request, at most
+MAX_WORKERS = max(1, min(4, (os.cpu_count() or 2) // 2))
+SPEEDS = {
+    # files at once, ffmpeg threads ("0" = auto), nice level
+    "low": (1, "2", 15),
+    "high": (MAX_WORKERS, "0", 0),
+}
+SETTINGS = os.path.join(mosaics.DATA_DIR, "analysis-settings.json")
 
 _q = collections.deque()
 _queued = set()
 _cv = threading.Condition()
+_running = {}             # relative path -> {"progress": 0..1, "proc": Popen}
 _state = {
     "paused": False,
-    "current": None,      # relative path being analysed
-    "progress": 0.0,      # 0..1 within the current file
+    "speed": "low",
     "batch": 0,           # files queued since the queue was last empty
     "done": 0,            # ... of which finished
     "failed": 0,          # ... of which failed
-    "avg": None,          # seconds per file, moving average
-    "proc": None,         # running ffmpeg, so pause can stop it
+    "avg": None,          # seconds per file and worker, moving average
 }
 _lib_cov = {"time": 0.0, "value": (0, 0)}
 
@@ -93,32 +102,61 @@ def enqueue(targets):
     """Queue every not-yet-analysed video of `targets`, ahead of the rest."""
     todo = [v for v in files_in(targets) if v not in _queued and not is_ready(v)]
     with _cv:
-        if not _q and _state["current"] is None:
+        if not _q and not _running:
             _state.update(batch=0, done=0, failed=0)
         for v in reversed(todo):
             if v not in _queued:
                 _q.appendleft(v)
                 _queued.add(v)
         _state["batch"] += len(todo)
-        _cv.notify()
+        _cv.notify_all()
     return len(todo)
 
 
 def set_paused(paused):
     with _cv:
         _state["paused"] = bool(paused)
-        proc = _state["proc"]
-        _cv.notify()
-    if paused and proc:
-        proc.terminate()
+        procs = [r["proc"] for r in _running.values() if r.get("proc")]
+        _cv.notify_all()
+    if paused:
+        for proc in procs:
+            proc.terminate()
+
+
+def set_speed(speed):
+    if speed not in SPEEDS:
+        raise ValueError("Velocità non valida")
+    with _cv:
+        _state["speed"] = speed
+        _cv.notify_all()          # more workers may start right away
+    try:
+        os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
+        with open(SETTINGS, "w", encoding="utf-8") as f:
+            json.dump({"speed": speed}, f)
+    except OSError as e:
+        log.error("cannot save analysis settings: %s", e)
+
+
+def _load_settings():
+    try:
+        with open(SETTINGS, encoding="utf-8") as f:
+            speed = json.load(f).get("speed")
+        if speed in SPEEDS:
+            _state["speed"] = speed
+    except (OSError, ValueError):
+        pass
 
 
 def status(targets=()):
     with _cv:
-        st = {k: v for k, v in _state.items() if k != "proc"}
+        st = dict(_state)
         st["queued"] = len(_q)
-    remaining = st["queued"] + (1 - st["progress"] if st["current"] else 0)
-    st["eta"] = round(remaining * st["avg"]) if st["avg"] else None
+        st["current"] = sorted(({"file": rel, "progress": r["progress"]}
+                                for rel, r in _running.items()), key=lambda c: c["file"])
+    st["workers"] = SPEEDS[st["speed"]][0]
+    st["max_workers"] = MAX_WORKERS
+    remaining = st["queued"] + sum(1 - c["progress"] for c in st["current"])
+    st["eta"] = round(remaining * st["avg"] / st["workers"]) if st["avg"] else None
     st["coverage"] = {t: _coverage(files_in([t])) for t in targets}
     st["library"] = _library_coverage()
     return st
@@ -151,15 +189,15 @@ def pool(targets, skip=()):
     return out
 
 
-# --- the worker -------------------------------------------------------
-def _worker():
+# --- the workers ------------------------------------------------------
+def _worker(i):
+    # Worker i only runs while the chosen speed allows i+1 files at once.
     while True:
         with _cv:
-            while not _q or _state["paused"]:
+            while not _q or _state["paused"] or i >= SPEEDS[_state["speed"]][0]:
                 _cv.wait()
             rel = _q.popleft()
-            _state["current"] = rel
-            _state["progress"] = 0.0
+            _running[rel] = {"progress": 0.0, "proc": None}
         t0 = time.monotonic()
         try:
             ok = _analyze(rel)
@@ -167,8 +205,7 @@ def _worker():
             log.error("analysis failed for %s: %s", rel, e)
             ok = False
         with _cv:
-            _state["current"] = None
-            _state["proc"] = None
+            _running.pop(rel, None)
             if ok is None:                # stopped by pause: try again later
                 _q.appendleft(rel)
                 continue
@@ -215,13 +252,16 @@ def _analyze(rel):
           "cropdetect=limit=24:round=2:reset=0,"
           r"select=gte(scene\,0),signalstats,"
           "metadata=print:file=/dev/stdout")
+    _, threads, niceness = SPEEDS[_state["speed"]]
+    # -skip_loop_filter: no deblocking. Invisible at 160 px, much faster.
     proc = subprocess.Popen(
-        ["nice", "-n", "15", "ffmpeg", "-v", "error", "-nostdin", "-threads", "2",
+        ["nice", "-n", str(niceness), "ffmpeg", "-v", "error", "-nostdin",
+         "-threads", threads, "-skip_loop_filter", "all",
          "-i", src, "-an", "-sn", "-dn", "-vf", vf, "-f", "null", "-"],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
     )
     with _cv:
-        _state["proc"] = proc
+        _running[rel]["proc"] = proc
 
     samples, cur, crop = [], None, {}
     for line in proc.stdout:
@@ -230,7 +270,7 @@ def _analyze(rel):
             cur = {"t": t}
             samples.append(cur)
             with _cv:
-                _state["progress"] = min(1.0, t / dur)
+                _running[rel]["progress"] = min(1.0, t / dur)
         elif cur is not None and line.startswith("lavfi."):
             k, _, v = line.strip().partition("=")
             k = k.rsplit(".", 1)[1]
@@ -288,4 +328,6 @@ def _analyze(rel):
     return True
 
 
-threading.Thread(target=_worker, daemon=True).start()
+_load_settings()
+for _i in range(MAX_WORKERS):
+    threading.Thread(target=_worker, args=(_i,), daemon=True).start()

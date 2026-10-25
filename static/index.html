@@ -119,14 +119,19 @@
           <span class="ed-label">Analisi dei video</span>
           <div class="sm-bar"><div id="smBatchBar"></div></div>
           <div id="smBatchText" class="sm-line"></div>
-          <div class="sm-bar thin hidden"><div id="smFileBar"></div></div>
-          <div id="smFileText" class="sm-line dim"></div>
+          <div id="smFiles"></div>
           <div id="smLibText" class="sm-line dim"></div>
+          <span class="ed-label">Velocità</span>
+          <div class="sm-speed">
+            <button data-speed="low">Bassa priorità</button>
+            <button data-speed="high">Massima</button>
+          </div>
+          <div id="smSpeedHint" class="sm-line dim"></div>
           <div class="sm-actions">
             <button id="smPause" class="btn ghost">Pausa</button>
             <button id="smAll" class="btn ghost">Analizza tutta la libreria</button>
           </div>
-          <p class="sb-hint">Il server guarda ogni video una volta, a bassa priorità: trova le inquadrature, quanto si muovono, la luce e i colori. La regia usa solo i video già analizzati, e migliora man mano che l'analisi va avanti.</p>
+          <p class="sb-hint">Il server guarda ogni video una volta: trova le inquadrature, quanto si muovono, la luce e i colori. La regia usa solo i video già analizzati, e migliora man mano che l'analisi va avanti.</p>
         </div>
       </div>
     </section>

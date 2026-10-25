@@ -70,7 +70,8 @@ preset labels) must stay Italian.
 | `GET /random?target=<path>[&target=<path>…]&duration=<sec>` | `{file, start, length, dur}` — a random video plus a random in-point. Each `target` may be `""` (whole library), a folder path, or an exact file path; with several (a mixed tile) the server picks a target first, then a file in it, so a small folder is not drowned by a big one. Targets with no videos are ignored. `404` if none matches or the pick vanished from disk, which makes the client refresh its tree. |
 | `GET /analysis?target=…` | Analysis worker state (`current`, `progress`, `queued`, `batch`/`done`/`failed`, `eta`, `paused`), `coverage` `[ready, total]` per target and for the whole `library`. |
 | `POST /analysis/queue` `{targets}` | Queues the not-yet-analysed videos of those scopes, ahead of the rest (`[""]` = the whole library). |
-| `POST /analysis/pause` `{paused}` | Pauses / resumes the worker; pausing kills the running ffmpeg and requeues that file. |
+| `POST /analysis/pause` `{paused}` | Pauses / resumes the workers; pausing kills the running ffmpegs and requeues those files. |
+| `POST /analysis/speed` `{speed}` | `"low"` (default) or `"high"`, kept in `DATA_DIR/analysis-settings.json`. |
 | `GET /smart/pool?target=…` | The analyses of the ready videos of those scopes (a random sample of `POOL_MAX` at most). |
 | `GET /mosaics` | All saved mosaics, oldest first. |
 | `PUT /mosaics/<id>` | Creates or overwrites one mosaic (last write wins). |
@@ -118,9 +119,13 @@ deliberate exception is a **thumbnail**: a single-frame grab (a fraction of a se
 built inside the `/thumb` request, at most `THUMB_JOBS` at a time (semaphore), cached
 under `PROXY_DIR/thumbs` keyed on size+mtime like proxies.
 
-`analysis.py` follows the same discipline: **one** worker thread, ffmpeg under
-`nice -n 15` with 2 threads, decoding at `SAMPLE_FPS` and 160 px wide, results as
-files on disk. In memory there is only a queue of paths and a few counters. Analyses
+`analysis.py` follows the same discipline, with a speed the user picks in the UI
+(`SPEEDS`): **low** (default) = one file at a time, ffmpeg under `nice -n 15` with 2
+threads; **high** = up to `MAX_WORKERS` (half the cores, max 4) files at once at normal
+priority, for the first pass over a big library. `MAX_WORKERS` threads exist, worker
+*i* only runs while the speed allows *i + 1* files (so wake them with `notify_all()`).
+Either way ffmpeg decodes with `-skip_loop_filter all` at `SAMPLE_FPS` and 160 px wide,
+results as files on disk. In memory there is only a queue of paths and a few counters. Analyses
 are named by `library.file_key()` (size + mtime), like proxies and thumbnails, so a
 rename doesn't redo the work and an edited file does.
 
@@ -451,15 +456,28 @@ The **director** (client) is a handful of readable rules:
 - material = shots of the sources, minus black and very short ones; motion becomes a
   percentile (`energy`) so "calm" means the same in any folder;
 - a **phase** (a few moves long) targets an energy and often a hue; the next phase
-  contrasts with the last; `pickShot()` scores shots on energy, colour, fit to the
-  cell's shape, not already on screen, not played lately, plus a little randomness;
-- clips are whole shots, or a window of a long one (`RHYTHMS[…].max`);
+  contrasts with the last; `chooseShot()` scores shots on energy, colour, fit to the
+  frame, not already on screen, not played lately, plus a little randomness. In a cell
+  that **stands out** (`standsOut()`: ≥ `HIGHLIGHT_SHARE` of the stage or
+  `HIGHLIGHT_REL`× the average cell — a lone full-screen cell always does) a clip of the
+  opposite orientation is **excluded**, not just penalised (unless no other shot exists);
+- clips are whole shots, or a window of a long one (`RHYTHMS[…].max`), see `clipOf()`;
 - the cell count **breathes** 1 → `density` → 1 (`targetCount()`), one change per move
-  (`tick()`): grow, shrink, nudge a split, or refresh one cell;
-- layout is a **tree of splits** (`{cell}` / `{dir, ratio, a, b}`); `insert()` splits the
-  leaf where the new clip gets a frame of its own shape (vertical clips → vertical
-  cells); `detach()` gives a removed cell's space to its sibling; cells move with CSS
-  transitions;
+  (`tick()`): grow, shrink, re-plan (`settle()`), nudge a split, or refresh one cell;
+- layout is a **tree of splits** (`{cell}` / `{dir, ratio, a, b}`), and it is **planned,
+  not placed by a local rule**: the director builds candidate trees (`withCell()`: every
+  leaf, both directions, both sides; `without()`: every cell that could leave), tunes
+  every split's direction and ratio with a local search (`optimize()`), and keeps the
+  cheapest (`cheapest()`). `grow()` plans both a horizontal and a vertical candidate
+  shot and adds whichever leaves the better stage. All taste lives in `cost()`, one term
+  per thing that looks wrong: cells wider than the stage itself or thinner than
+  `minA` (no long strips on a long tablet), cells much smaller than the average or with
+  a side under 20% of the stage height (no crumbs), clip/frame shape mismatch weighted
+  by the cell's size, a crossed orientation in a cell that stands out, and movement of
+  cells already on stage (continuity). Tune it there. With ≤ 6 cells a decision is a
+  few thousand `cost()` calls — milliseconds;
+- after any layout change a cell that now stands out with a crossed clip switches to a
+  fitting one at once; a prefetched clip that no longer fits its cell is dropped;
 - each `Cell` owns two `<video>` elements (double buffer, generation counter, `_done`
   stale-load guard, released on `destroy()`), picks its next shot for its current shape
   when its shot ends; with more than one cell it plays proxies; all at `cfg.volume`.
@@ -467,7 +485,8 @@ The **director** (client) is a handful of readable rules:
 Sources are added by dropping library cards on the «Regia» tab or on the stage while
 it runs. The tab shows sources (with `ready/total` coverage), the knobs (ritmo,
 densità, volume), start/save, and the **analysis progress**: batch bar + count + ETA,
-current file bar, library coverage, pause/resume and "analyse the whole library". The
+one bar per file in progress, library coverage, the speed selector, pause/resume and
+"analyse the whole library". The
 stage shows a small pill while its sources are still being analysed, and a waiting
 screen until the first material is ready. Status is polled only while the tab is open
 or the regia runs with work pending. A saved regia is a mosaic with `kind: "smart"`
@@ -558,7 +577,8 @@ Before considering a change to this repo done, confirm all of these still hold:
 9. No new runtime dependencies, no build step.
 10. Every canvas change goes through `remember()` first, so it can be undone.
 11. The regia stays separate: it uses no `Tile`, no GridStack, no undo, and analysis
-    never runs inside a request.
+    never runs inside a request. At "low" speed it never takes more than one file and
+    2 ffmpeg threads.
 
 ## 8. Working agreements
 

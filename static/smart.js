@@ -138,30 +138,58 @@ const Smart = (() => {
 
   const hueDist = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
   const fitCost = (a, b) => Math.abs(Math.log(a / b));
+  const orient = a => a > 1.15 ? "h" : a < 0.87 ? "v" : "s";
+  // A vertical clip in a horizontal frame, or the other way round.
+  const clash = (a, b) => {
+    const x = orient(a), y = orient(b);
+    return x !== "s" && y !== "s" && x !== y;
+  };
 
-  // Best shot for a cell of aspect `cellAspect` (null: any shape).
-  function pickShot(cellAspect) {
+  // Best shot for the phase. `frame`: aspect of the cell it goes in (a
+  // mismatch costs points); `highlight`: that cell stands out, so a clip
+  // of the opposite orientation is not allowed at all; `want`: only
+  // shots of that orientation (used to compare a vertical and a
+  // horizontal candidate). The strict rules are dropped only when no
+  // shot satisfies them.
+  function chooseShot({ frame = null, highlight = false, want = null } = {}) {
     if (!shots.length) return null;
     const playing = new Set([...cells].map(c => c.clip?.file));
-    const n = Math.min(shots.length, 300);
-    let best = null, bestScore = -Infinity;
-    for (let i = 0; i < n; i++) {
-      const s = shots.length <= 300 ? shots[i] : shots[Math.floor(Math.random() * shots.length)];
-      let score = -2 * Math.abs(s.energy - phase.energy);
-      if (phase.hue !== null) score -= 1.2 * s.sat * hueDist(s.hue, phase.hue) / Math.PI;
-      if (cellAspect) score -= 1.5 * fitCost(cellAspect, s.aspect);
-      if (playing.has(s.file)) score -= 2.5;
-      if (recent.includes(s.id)) score -= 2;
-      score += Math.random() * 0.7;                  // a little variety
-      if (score > bestScore) { bestScore = score; best = s; }
+    const sample = shots.length <= 300 ? shots
+      : Array.from({ length: 300 }, () => shots[Math.floor(Math.random() * shots.length)]);
+    for (const strict of want ? [true] : [true, false]) {
+      let best = null, bestScore = -Infinity;
+      for (const s of sample) {
+        if (strict && want && clash(want, s.aspect)) continue;
+        if (strict && highlight && frame && clash(frame, s.aspect)) continue;
+        let score = -2 * Math.abs(s.energy - phase.energy);
+        if (phase.hue !== null) score -= 1.2 * s.sat * hueDist(s.hue, phase.hue) / Math.PI;
+        if (frame) score -= 1.5 * fitCost(frame, s.aspect);
+        if (playing.has(s.file)) score -= 2.5;
+        if (recent.includes(s.id)) score -= 2;
+        score += Math.random() * 0.7;                // a little variety
+        if (score > bestScore) { bestScore = score; best = s; }
+      }
+      if (best) return best;
     }
-    recent.push(best.id);
+    return null;
+  }
+
+  // The clip actually played from a shot: the whole shot, or a window of
+  // a shot longer than the rhythm allows.
+  function clipOf(s) {
+    recent.push(s.id);
     if (recent.length > 60) recent.shift();
-    // A shot longer than the rhythm allows plays a window of it.
-    const len = best.b - best.a, max = rhythm().max;
-    const start = best.a + (len > max ? Math.random() * (len - max) : 0);
-    return { file: best.file, start, length: Math.min(len, max),
-             aspect: best.aspect, crop: best.crop };
+    const len = s.b - s.a, max = rhythm().max;
+    const start = s.a + (len > max ? Math.random() * (len - max) : 0);
+    return { file: s.file, start, length: Math.min(len, max), aspect: s.aspect, crop: s.crop };
+  }
+
+  // Next clip for a cell, chosen for its current frame.
+  function pickFor(cell) {
+    const r = cell.rect;
+    const s = r ? chooseShot({ frame: r.w / r.h, highlight: standsOut(r, cells.size) })
+                : chooseShot();
+    return s && clipOf(s);
   }
 
   // -------------------------------------------------------------------
@@ -179,6 +207,7 @@ const Smart = (() => {
       this.next = null;          // { clip, el } prefetched
       this.timer = null;
       this.rect = null;
+      this.pending = null;       // aspect of the clip being loaded, for planning
       stage.append(this.el);
     }
 
@@ -189,8 +218,6 @@ const Smart = (() => {
       v.muted = true;
       return v;
     }
-
-    aspect() { return this.rect ? this.rect.w / this.rect.h : null; }
 
     // Load `clip` into the hidden element; resolves with it when playable.
     load(clip) {
@@ -242,7 +269,7 @@ const Smart = (() => {
 
     async prefetch() {
       const gen = this.gen;
-      const clip = pickShot(this.aspect());
+      const clip = pickFor(this);
       if (!clip) return;
       try {
         const el = await this.load(clip);
@@ -255,9 +282,13 @@ const Smart = (() => {
       clearTimeout(this.timer);
       let n = this.next;
       this.next = null;
+      // Chosen for the frame this cell had then: drop it if the cell now
+      // stands out and the clip's orientation is the wrong one.
+      if (n && this.rect && standsOut(this.rect, cells.size) &&
+          clash(this.rect.w / this.rect.h, n.clip.aspect)) n = null;
       const gen = ++this.gen;
       if (!n) {
-        const clip = pickShot(this.aspect());
+        const clip = pickFor(this);
         if (!clip) return;
         try { n = { clip, el: await this.load(clip) }; }
         catch (e) {
@@ -312,11 +343,40 @@ const Smart = (() => {
 
   // -------------------------------------------------------------------
   //  Layout: a tree of splits. "v" = side by side, "h" = stacked.
+  //
+  //  The director never places cells by a local rule: it builds candidate
+  //  trees (split this leaf or that one, either way, remove this cell or
+  //  that one), lets optimize() tune every split's direction and ratio,
+  //  and keeps the candidate with the lowest cost(). cost() is where the
+  //  taste lives, in plain numbers.
   // -------------------------------------------------------------------
-  function walk(fn) {
-    const W = stage.clientWidth, H = stage.clientHeight;
+  const RATIOS = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
+  const HIGHLIGHT_SHARE = 0.4;   // a cell this much of the stage stands out...
+  const HIGHLIGHT_REL = 1.5;     // ...and so does one 1.5× the average cell
+
+  const stageSize = () => ({ W: stage.clientWidth || innerWidth, H: stage.clientHeight || innerHeight });
+
+  function standsOut(r, n) {
+    const { W, H } = stageSize(), share = (r.w * r.h) / (W * H);
+    return share >= HIGHLIGHT_SHARE || share * n >= HIGHLIGHT_REL;
+  }
+
+  const leavesOf = (n, out = []) => {
+    if (n.cell) out.push(n); else { leavesOf(n.a, out); leavesOf(n.b, out); }
+    return out;
+  };
+  const splitsOf = (n, out = []) => {
+    if (!n.cell) { out.push(n); splitsOf(n.a, out); splitsOf(n.b, out); }
+    return out;
+  };
+  const clone = n => n.cell ? { cell: n.cell }
+    : { dir: n.dir, ratio: n.ratio, a: clone(n.a), b: clone(n.b) };
+
+  // Leaves of `tree` with their rect on the stage.
+  function rects(tree) {
+    const { W, H } = stageSize(), out = [];
     const go = (n, x, y, w, h) => {
-      if (n.cell) return fn(n, { x, y, w, h });
+      if (n.cell) return out.push({ cell: n.cell, r: { x, y, w, h } });
       if (n.dir === "v") {
         const wa = w * n.ratio;
         go(n.a, x, y, wa, h); go(n.b, x + wa, y, w - wa, h);
@@ -325,55 +385,116 @@ const Smart = (() => {
         go(n.a, x, y, w, ha); go(n.b, x, y + ha, w, h - ha);
       }
     };
-    if (root) go(root, 0, 0, W, H);
+    if (tree) go(tree, 0, 0, W, H);
+    return out;
+  }
+
+  // How bad a layout is. Each term is one thing that looks wrong.
+  function cost(tree) {
+    const { W, H } = stageSize(), leaves = rects(tree), n = leaves.length;
+    // The stage itself may be wide (a long tablet): a cell may be as wide
+    // as the stage, not wider.
+    const maxA = Math.max(1.9, W / H + 0.05), minA = 0.45;
+    const minSide = Math.max(MIN_CELL_PX, H * 0.2);
+    let c = 0;
+    for (const { cell, r } of leaves) {
+      const a = r.w / r.h, share = (r.w * r.h) / (W * H), rel = share * n;
+      // Long strips and thin columns.
+      if (a > maxA) c += 1 + 4 * Math.log(a / maxA);
+      if (a < minA) c += 1 + 4 * Math.log(minA / a);
+      // Crumbs: a cell much smaller than the average, or too small to read.
+      if (rel < 0.45) c += 0.5 + 4 * (0.45 - rel);
+      const side = Math.min(r.w, r.h);
+      if (side < minSide) c += 2 + 6 * (1 - side / minSide);
+      // The clip against its frame: matters more the bigger the frame,
+      // and a crossed orientation in a cell that stands out is a no.
+      const ca = cell.clip?.aspect ?? cell.pending ?? 16 / 9;
+      c += fitCost(a, ca) * (0.3 + rel);
+      if (clash(a, ca) && standsOut(r, n)) c += 6;
+      // Continuity: a cell on screen shouldn't jump for a small gain.
+      const o = cell.rect;
+      if (o) c += 0.8 * (Math.abs(r.x - o.x) + Math.abs(r.y - o.y) +
+                         Math.abs(r.w - o.w) + Math.abs(r.h - o.h)) / (W + H);
+    }
+    return c;
+  }
+
+  // Local search: try every direction and ratio of every split, keep what
+  // lowers the cost, until a pass changes nothing. Six cells at most make
+  // this a few hundred evaluations of cost(): nothing.
+  function optimize(tree) {
+    let best = cost(tree);
+    for (let pass = 0; pass < 4; pass++) {
+      let better = false;
+      for (const s of splitsOf(tree)) {
+        let keep = [s.dir, s.ratio];
+        for (const dir of ["v", "h"]) {
+          for (const ratio of RATIOS) {
+            s.dir = dir;
+            s.ratio = ratio;
+            const c = cost(tree);
+            if (c < best - 1e-6) { best = c; keep = [dir, ratio]; better = true; }
+          }
+        }
+        [s.dir, s.ratio] = keep;
+      }
+      if (!better) break;
+    }
+    return best;
+  }
+
+  // Every tree with `cell` added: split any leaf, either way, either side.
+  function withCell(tree, cell) {
+    if (!tree) return [{ cell }];
+    const out = [], count = leavesOf(tree).length;
+    for (let k = 0; k < count; k++) {
+      for (const dir of ["v", "h"]) {
+        for (const first of [true, false]) {
+          const t = clone(tree), leaf = leavesOf(t)[k];
+          const old = { cell: leaf.cell }, fresh = { cell };
+          delete leaf.cell;
+          Object.assign(leaf, { dir, ratio: 0.5, a: first ? fresh : old, b: first ? old : fresh });
+          out.push(t);
+        }
+      }
+    }
+    return out;
+  }
+
+  // `tree` without `cell`: its sibling takes the parent's space.
+  function without(tree, cell) {
+    if (tree.cell) return tree.cell === cell ? null : tree;
+    const a = without(tree.a, cell), b = without(tree.b, cell);
+    if (!a) return b;
+    if (!b) return a;
+    tree.a = a;
+    tree.b = b;
+    return tree;
+  }
+
+  // Optimise every candidate, return the cheapest {tree, cost}.
+  function cheapest(trees) {
+    let best = null;
+    for (const t of trees) {
+      const c = optimize(t);
+      if (!best || c < best.cost) best = { tree: t, cost: c };
+    }
+    return best;
   }
 
   function layout() {
-    walk((n, r) => n.cell.place({ x: r.x + GAP, y: r.y + GAP, w: r.w - 2 * GAP, h: r.h - 2 * GAP }));
+    for (const { cell, r } of rects(root))
+      cell.place({ x: r.x + GAP, y: r.y + GAP, w: r.w - 2 * GAP, h: r.h - 2 * GAP });
     // Smart crop depends on the final size: redo it once the move ends.
     setTimeout(() => { for (const c of cells) c.fit(); }, FADE_MS + 100);
-  }
-
-  // Split the leaf where a clip of aspect `ac` gets a frame of its own
-  // shape without wrecking the neighbour's; bigger cells are preferred.
-  function insert(cell, ac) {
-    if (!root) { root = { cell }; return true; }
-    const W = stage.clientWidth, H = stage.clientHeight;
-    let best = null;
-    walk((node, r) => {
-      for (const dir of ["v", "h"]) {
-        const f = clamp(dir === "v" ? ac * r.h / r.w : r.w / (ac * r.h), 0.3, 0.7);
-        const nw = dir === "v" ? r.w * f : r.w, nh = dir === "v" ? r.h : r.h * f;
-        const ow = dir === "v" ? r.w - nw : r.w, oh = dir === "v" ? r.h : r.h - nh;
-        if (Math.min(nw, nh, ow, oh) < MIN_CELL_PX) continue;
-        const oa = node.cell.clip?.aspect || ow / oh;
-        const cost = fitCost(nw / nh, ac) + fitCost(ow / oh, oa) - 0.8 * (r.w * r.h) / (W * H);
-        if (!best || cost < best.cost) best = { cost, node, dir, f };
-      }
-    });
-    if (!best) return false;
-    const { node, dir, f } = best;
-    const fresh = { cell }, old = { cell: node.cell };
-    const first = Math.random() < 0.5;
-    delete node.cell;
-    Object.assign(node, { dir, ratio: first ? f : 1 - f,
-                          a: first ? fresh : old, b: first ? old : fresh });
-    return true;
-  }
-
-  // Take a leaf out: its sibling takes the parent's whole space.
-  function detach(cell) {
-    if (root?.cell === cell) { root = null; return; }
-    const find = n => {
-      if (n.cell) return null;
-      if (n.a.cell === cell || n.b.cell === cell) return n;
-      return find(n.a) || find(n.b);
-    };
-    const p = root && find(root);
-    if (!p) return;
-    const sib = p.a.cell === cell ? p.b : p.a;
-    for (const k of Object.keys(p)) delete p[k];
-    Object.assign(p, sib);
+    // A cell that grew into the spotlight with a clip of the wrong
+    // orientation gets a fitting one now, not when its shot ends.
+    for (const c of cells) {
+      const frame = c.rect && c.rect.w / c.rect.h;
+      if (c.clip && frame && standsOut(c.rect, cells.size) && clash(frame, c.clip.aspect) &&
+          shots.some(x => !clash(frame, x.aspect)))
+        c.advance();
+    }
   }
 
   // -------------------------------------------------------------------
@@ -388,18 +509,33 @@ const Smart = (() => {
     return wave[Math.floor(beat / 2) % wave.length];
   }
 
+  // Add a cell. What fits the stage now, a horizontal or a vertical clip?
+  // Plan both, with every possible insertion, and keep the cheapest.
   async function grow() {
     if (busy || !active) return;
-    const clip = pickShot(null);
-    if (!clip) return;
     busy = true;
+    let pick = null;
+    for (const want of [16 / 9, 9 / 16]) {
+      const s = chooseShot({ want });
+      if (!s || pick?.shot === s) continue;
+      const plan = cheapest(withCell(root && clone(root), { pending: s.aspect }));
+      const c = plan.cost + Math.random() * 0.3;
+      if (!pick || c < pick.cost) pick = { shot: s, cost: c };
+    }
+    // Adding would make the stage clearly worse: skip this move.
+    if (!pick || (root && pick.cost - cost(root) > 8)) { busy = false; return; }
+
     const cell = new Cell();
+    cell.pending = pick.shot.aspect;
+    const clip = clipOf(pick.shot);
     try {
       const el = await cell.load(clip);
-      if (!active || !insert(cell, clip.aspect)) throw new Error("no room");
+      if (!active) throw new Error("stopped");
+      // Re-plan with the real cell: the stage may have moved meanwhile.
+      root = cheapest(withCell(root && clone(root), cell)).tree;
       cells.add(cell);
-      layout();
       cell.show(clip, el);
+      layout();
       requestAnimationFrame(() => cell.el.classList.add("in"));
     } catch (e) {
       cell.destroy();
@@ -407,25 +543,45 @@ const Smart = (() => {
     busy = false;
   }
 
+  // Remove the cell whose departure leaves the best stage (older cells
+  // go first when it's a close call).
   function shrink() {
-    const cell = cells.values().next().value;     // the oldest
-    if (!cell) return;
+    const list = [...cells];
+    let best = null;
+    list.forEach((cell, i) => {
+      const t = without(clone(root), cell);
+      const c = (t ? optimize(t) : 0) - 0.4 * (list.length - i) / list.length;
+      if (!best || c < best.c) best = { c, cell, t };
+    });
+    if (!best) return;
+    const { cell, t } = best;
+    root = t;
     cells.delete(cell);
-    detach(cell);
     cell.el.classList.remove("in");
     cell.el.classList.add("out");
     layout();
     setTimeout(() => cell.destroy(), FADE_MS);
   }
 
-  // Shift one split a little: the cells breathe without changing.
+  // Re-plan the cells on stage: their clips change shape over time.
+  function settle() {
+    if (!root) return false;
+    const t = clone(root);
+    if (optimize(t) >= cost(root) - 0.05) return false;
+    root = t;
+    layout();
+    return true;
+  }
+
+  // A small random breath of one split, kept only if the stage stays good.
   function nudge() {
-    const splits = [];
-    const go = n => { if (!n.cell) { splits.push(n); go(n.a); go(n.b); } };
-    if (root) go(root);
-    if (!splits.length) return false;
-    const s = splits[Math.floor(Math.random() * splits.length)];
-    s.ratio = clamp(s.ratio + (Math.random() < 0.5 ? -1 : 1) * (0.08 + Math.random() * 0.08), 0.3, 0.7);
+    if (!root) return false;
+    const t = clone(root), sp = splitsOf(t);
+    if (!sp.length) return false;
+    const s = sp[Math.floor(Math.random() * sp.length)];
+    s.ratio = clamp(s.ratio + (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.05), 0.3, 0.7);
+    if (cost(t) > cost(root) + 0.4) return false;
+    root = t;
     layout();
     return true;
   }
@@ -439,7 +595,7 @@ const Smart = (() => {
       const want = targetCount();
       if (cells.size < want) grow();
       else if (cells.size > want) shrink();
-      else if (Math.random() < 0.5 || !nudge()) {
+      else if (!settle() && !(Math.random() < 0.5 && nudge())) {
         const list = [...cells];
         list[Math.floor(Math.random() * list.length)]?.advance();
       }
@@ -562,15 +718,16 @@ const Smart = (() => {
       lastStatus = await api("GET", `/analysis?${params}`);
       renderStatus(lastStatus);
     } catch (e) { /* server busy or gone: try again */ }
-    const working = lastStatus && (lastStatus.current || lastStatus.queued);
+    const working = lastStatus && (lastStatus.current.length || lastStatus.queued);
     if (panelVisible() || (active && working))
       statusT = setTimeout(pollStatus, working ? 2000 : 6000);
   }
 
   function renderStatus(st) {
     const finished = st.done + st.failed;
-    const working = !!(st.current || st.queued);
-    const frac = st.batch ? (finished + (st.current ? st.progress : 0)) / st.batch : 0;
+    const working = !!(st.current.length || st.queued);
+    const inFlight = st.current.reduce((k, c) => k + c.progress, 0);
+    const frac = st.batch ? (finished + inFlight) / st.batch : 0;
     $("smBatchBar").style.width = (working ? frac * 100 : st.batch ? 100 : 0) + "%";
     $("smBatchBar").classList.toggle("paused", st.paused);
     let line;
@@ -579,9 +736,21 @@ const Smart = (() => {
     else line = st.batch ? `Fatto: ${st.done} video analizzati` : "Nessuna analisi in corso";
     if (st.failed) line += ` · ${st.failed} non riusciti`;
     $("smBatchText").textContent = line;
-    $("smFileBar").parentElement.classList.toggle("hidden", !st.current);
-    $("smFileBar").style.width = (st.progress * 100) + "%";
-    $("smFileText").textContent = st.current ? `Ora: ${st.current.split("/").pop()} · ${Math.round(st.progress * 100)}%` : "";
+    // One thin bar per file in progress (several at "massima" speed).
+    const files = $("smFiles");
+    files.replaceChildren();
+    for (const c of st.current) {
+      const row = document.createElement("div");
+      row.className = "sm-file";
+      row.innerHTML = `<div class="sm-bar thin"><div style="width:${c.progress * 100}%"></div></div>` +
+        `<span class="sm-line dim">${escapeHtml(c.file.split("/").pop())} · ${Math.round(c.progress * 100)}%</span>`;
+      files.append(row);
+    }
+    for (const b of document.querySelectorAll(".sm-speed button"))
+      b.classList.toggle("active", b.dataset.speed === st.speed);
+    $("smSpeedHint").textContent = st.speed === "high"
+      ? `${st.workers} video alla volta, priorità normale: più veloce, il server lavora di più.`
+      : "Un video alla volta, a bassa priorità: il server resta tranquillo.";
     $("smLibText").textContent = `Libreria: ${st.library[0]} su ${st.library[1]} video analizzati`;
     $("smPause").textContent = st.paused ? "Riprendi" : "Pausa";
     $("smAll").disabled = st.library[0] >= st.library[1];
@@ -640,6 +809,11 @@ const Smart = (() => {
       await api("POST", "/analysis/pause", { paused: !lastStatus?.paused }).catch(() => {});
       pollStatus();
     });
+    for (const b of document.querySelectorAll(".sm-speed button"))
+      b.addEventListener("click", async () => {
+        await api("POST", "/analysis/speed", { speed: b.dataset.speed }).catch(() => {});
+        pollStatus();
+      });
     $("smAll").addEventListener("click", async () => {
       await api("POST", "/analysis/queue", { targets: [""] }).catch(() => {});
       toast("Analisi di tutta la libreria in coda");

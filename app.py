@@ -107,6 +107,16 @@ def analysis_pause():
     return jsonify({"ok": True})
 
 
+@app.post("/analysis/speed")
+def analysis_speed():
+    d = request.get_json(silent=True) or {}
+    try:
+        analysis.set_speed(d.get("speed"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True})
+
+
 @app.get("/smart/pool")
 def smart_pool():
     return jsonify(analysis.pool(_targets() or [""], set(request.args.getlist("skip"))))

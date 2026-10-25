@@ -5,6 +5,7 @@ bytes are never cached here — they are streamed from disk with Range
 support and cached for free by the OS page cache.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -54,6 +55,27 @@ def all_videos():
         _list_cache["videos"] = videos
         _list_cache["set"] = frozenset(videos)
     return videos
+
+
+def in_scope(videos, target):
+    """Videos matching one scope: "" (all), an exact file, or a folder."""
+    if not target:
+        return videos
+    if target in videos:
+        return [target]
+    prefix = target + "/"
+    return [v for v in videos if v.startswith(prefix)]
+
+
+def file_key(path):
+    """Stable cache key of a file, on size+mtime so edits invalidate it.
+    Proxies, thumbnails and analyses are all named after it."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = f"{st.st_size}:{int(st.st_mtime)}".encode()
+    return hashlib.sha1(key).hexdigest()[:16]
 
 
 def is_video(rel):

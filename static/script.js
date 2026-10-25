@@ -884,10 +884,10 @@ const encodePath = file => file.split("/").map(encodeURIComponent).join("/");
 
 function videoUrl(file) {
   // getGridItems() (not tiles.size) so a tile loading its very first clip
-  // already counts itself. Proxies have no audio track, so a mosaic with
-  // sound on plays the originals.
+  // already counts itself. Proxies carry audio, so this holds with mosaic
+  // audio on as well.
   const many = grid.getGridItems().length > 1;
-  return `/video/${encodePath(file)}${many && !mosaicAudio ? "?q=low" : ""}`;
+  return `/video/${encodePath(file)}${many ? "?q=low" : ""}`;
 }
 
 function stopDrag(el) {
@@ -1042,17 +1042,6 @@ function toggleAudio() {
   mosaicAudio = !mosaicAudio;
   try { localStorage.setItem("kiosk.audio", mosaicAudio ? "1" : ""); } catch (e) {}
   updateAudioBtn();
-  if (tiles.size > 1) {
-    for (const t of tiles.values()) {
-      // A tile on a silent proxy needs the original to be heard.
-      if (mosaicAudio && t.videos[t.active].src.includes("q=low")) {
-        t.next = null;
-        t.advance();
-      } else {
-        t.refetch();
-      }
-    }
-  }
   updateAudio();
   toast(mosaicAudio ? "Audio del mosaico attivo" : "Audio del mosaico spento");
 }
@@ -1269,6 +1258,7 @@ function clearTiles() {
 // Random mosaic: random tile count, random fitting preset, all tiles
 // looping random clips from the same scope.
 function randomMosaic(scope) {
+  Smart.stop(false);         // new content: the regia makes way
   if (tiles.size) remember("Mosaico casuale");
   clearTiles();
   paused = false;
@@ -1283,6 +1273,7 @@ function randomMosaic(scope) {
 
 // Tap on a tree item: single full-canvas loop of that scope.
 function playScope(scope) {
+  Smart.stop(false);         // new content: the regia makes way
   if (tiles.size) remember("Riproduci");
   clearTiles();
   paused = false;
@@ -1467,6 +1458,7 @@ function snapshotTiles() {
 }
 
 function loadMosaic(m) {
+  Smart.stop(false);         // new content: the regia makes way
   if (tiles.size) remember("Apri mosaico");
   clearTiles();
   paused = false;
@@ -1491,6 +1483,12 @@ function saveMosaic() {
 // Overwrite a saved mosaic with what is on the canvas right now, so an
 // existing mosaic can be tweaked instead of re-created.
 function updateMosaic(m) {
+  if (m.kind === "smart") {
+    if (!Smart.active) { toast("Avvia la regia per aggiornarla"); return; }
+    mosaicCall("PUT", { ...m, smart: Smart.settings() }, "Regia aggiornata",
+               "Aggiorna regia", () => mosaicCall("PUT", m));
+    return;
+  }
   if (!tiles.size) { toast("Nessun video nel mosaico"); return; }
   mosaicCall("PUT", { ...m, preset: currentPreset, tiles: snapshotTiles() },
              "Mosaico aggiornato", "Aggiorna mosaico", () => mosaicCall("PUT", m));
@@ -1509,10 +1507,11 @@ function renderMosaics() {
   for (const m of mosaics) {
     const row = document.createElement("div");
     row.className = "mosaic-row";
+    const smart = m.kind === "smart";
     row.innerHTML =
-      `<span class="material-icons-round">dashboard</span>` +
+      `<span class="material-icons-round">${smart ? "auto_awesome" : "dashboard"}</span>` +
       `<span class="row-name">${escapeHtml(m.name)}</span>` +
-      `<span class="mosaic-count">${m.tiles.length}</span>`;
+      `<span class="mosaic-count">${smart ? "regia" : m.tiles.length}</span>`;
 
     row.append(
       rowAction("save", "Aggiorna con il mosaico attuale", () => updateMosaic(m)),
@@ -1524,7 +1523,7 @@ function renderMosaics() {
         mosaicCall("DELETE", m, "Mosaico eliminato", "Elimina mosaico",
                    () => mosaicCall("PUT", m))),
     );
-    row.addEventListener("click", () => loadMosaic(m));
+    row.addEventListener("click", () => smart ? Smart.load(m.smart) : loadMosaic(m));
     box.append(row);
   }
 }
@@ -1750,6 +1749,7 @@ function initEditor() {
 //  Global controls
 // ---------------------------------------------------------------------
 function nextAll() {
+  if (Smart.active) { Smart.evolve(); return; }
   for (const t of tiles.values()) t.advance();
 }
 
@@ -1761,6 +1761,7 @@ function updatePauseBtn() {
 function togglePause() {
   paused = !paused;
   updatePauseBtn();
+  if (Smart.active) Smart.setPaused(paused);
   for (const t of tiles.values()) t.setPaused(paused);
 }
 
@@ -1787,7 +1788,9 @@ function showTab(id) {
     t.classList.toggle("active", t.dataset.tab === id);
   document.getElementById("tab-lib").classList.toggle("hidden", id !== "lib");
   document.getElementById("tab-mos").classList.toggle("hidden", id !== "mos");
+  document.getElementById("tab-smart").classList.toggle("hidden", id !== "smart");
   if (id === "mos") refreshMosaics();
+  if (id === "smart") Smart.pollStatus();
 }
 
 function closeSidebar() { document.getElementById("sidebar").classList.remove("open"); }
@@ -1983,6 +1986,13 @@ function planDrop(x, y, base) {
   return mix;
 }
 
+// The "Regia" tab is a drop target too: dropping a library card on it
+// adds that folder to the regia.
+function overSmartTab(x, y) {
+  const r = document.querySelector('.sb-tab[data-tab="smart"]').getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
 function overSidebar(x) {
   const sb = document.getElementById("sidebar");
   return sb.classList.contains("open") && x < sb.getBoundingClientRect().right;
@@ -1995,6 +2005,7 @@ function dragSession(label, self = null) {
   const slot = document.getElementById("drop-slot");
   const base = grid.getGridItems().filter(el => el !== self).map(itemRect);
   const before = canvasSnap();
+  const smartTab = document.querySelector('.sb-tab[data-tab="smart"]');
   let plan = null;
   ghost.textContent = label;
   ghost.classList.remove("hidden");
@@ -2029,12 +2040,20 @@ function dragSession(label, self = null) {
     before,
     move(x, y) {
       ghost.style.transform = `translate(${x + 14}px, ${y - 20}px)`;
+      smartTab.classList.toggle("drop-target", overSmartTab(x, y));
+      // While the regia runs the canvas belongs to it: drops add sources.
+      if (Smart.active) {
+        Smart.hover(!overSidebar(x));
+        return;
+      }
       setPlan(overSidebar(x) ? null : planDrop(x, y, base));
     },
     // Returns the plan to carry out (its split preview, if any, stays
     // applied), or null after putting everything back.
     end(commit) {
       ghost.classList.add("hidden");
+      smartTab.classList.remove("drop-target");
+      if (Smart.active) Smart.hover(false);
       const p = commit ? plan : null;
       if (p?.kind === "new") {
         plan = null;
@@ -2082,8 +2101,13 @@ function makeDraggable(card, scope) {
     const s = session;
     session = null;
     card.classList.remove("dragging");
-    const p = s.end(e.type === "pointerup");
-    if (p?.kind === "new") {
+    const up = e.type === "pointerup";
+    const toSmart = up && (overSmartTab(e.clientX, e.clientY) ||
+                           (Smart.active && !overSidebar(e.clientX)));
+    const p = s.end(up && !toSmart);
+    if (toSmart) {
+      Smart.addSource(scope);
+    } else if (p?.kind === "new") {
       remember("Aggiungi video", s.before);
       addTile([scope], { rect: p.rect });
       reZoom();

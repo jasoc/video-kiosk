@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.min.js"></script>
   <script src="script.js" defer></script>
+  <script src="smart.js" defer></script>
 </head>
 <body>
 
@@ -65,6 +66,7 @@
       <div class="sb-tabs" role="tablist">
         <button class="sb-tab active" data-tab="lib">Libreria</button>
         <button class="sb-tab" data-tab="mos">Mosaici</button>
+        <button class="sb-tab" data-tab="smart">Regia</button>
       </div>
       <button id="closeSidebar" class="tb-btn" title="Chiudi"><span class="material-icons-round">close</span></button>
     </header>
@@ -92,12 +94,63 @@
       </div>
       <div id="mosaics"></div>
     </section>
+
+    <section id="tab-smart" class="sb-panel hidden">
+      <div class="sm-scroll">
+        <div class="sm-sec">
+          <span class="ed-label">Cartelle</span>
+          <div id="smSources" class="ed-scopes"></div>
+          <p class="sb-hint">Trascina le cartelle dalla Libreria sulla linguetta &laquo;Regia&raquo;, o sul palco mentre la regia è attiva.</p>
+          <button id="smAddOpen" class="btn ghost">Aggiungi la cartella aperta in Libreria</button>
+        </div>
+        <div class="sm-sec">
+          <span class="ed-label">Ritmo <span id="smRhythmLabel"></span></span>
+          <input id="smRhythm" type="range" min="0" max="4" step="1" />
+          <span class="ed-label">Densità <span id="smDensityLabel"></span></span>
+          <input id="smDensity" type="range" min="1" max="6" step="1" />
+          <span class="ed-label">Volume <span id="smVolumeLabel"></span></span>
+          <input id="smVolume" type="range" min="0" max="100" step="1" />
+        </div>
+        <div class="sm-actions">
+          <button id="smStart" class="btn primary">Avvia la regia</button>
+          <button id="smSave" class="btn ghost">Salva</button>
+        </div>
+        <div class="sm-sec sm-analysis">
+          <span class="ed-label">Analisi dei video</span>
+          <div class="sm-bar"><div id="smBatchBar"></div></div>
+          <div id="smBatchText" class="sm-line"></div>
+          <div class="sm-bar thin hidden"><div id="smFileBar"></div></div>
+          <div id="smFileText" class="sm-line dim"></div>
+          <div id="smLibText" class="sm-line dim"></div>
+          <div class="sm-actions">
+            <button id="smPause" class="btn ghost">Pausa</button>
+            <button id="smAll" class="btn ghost">Analizza tutta la libreria</button>
+          </div>
+          <p class="sb-hint">Il server guarda ogni video una volta, a bassa priorità: trova le inquadrature, quanto si muovono, la luce e i colori. La regia usa solo i video già analizzati, e migliora man mano che l'analisi va avanti.</p>
+        </div>
+      </div>
+    </section>
   </aside>
 
   <!-- Canvas -->
   <main id="canvas">
     <div class="grid-stack" id="grid"></div>
   </main>
+
+  <!-- Regia: the smart mosaic's own stage (static/smart.js) -->
+  <div id="smart-stage" class="hidden">
+    <div id="smWait" class="sm-wait hidden">
+      <span class="material-icons-round">insights</span>
+      <span id="smWaitText">Analisi dei video in corso…</span>
+    </div>
+    <div id="smPill" class="sm-pill hidden"></div>
+    <div id="smStageBar" class="sm-stagebar">
+      <span class="material-icons-round">auto_awesome</span>
+      <span id="smStageTitle" class="row-name"></span>
+      <button id="smEvolve" class="tile-btn" title="Cambia ora"><span class="material-icons-round">skip_next</span></button>
+      <button id="smExit" class="tile-btn" title="Esci dalla regia"><span class="material-icons-round">close</span></button>
+    </div>
+  </div>
 
   <!-- Where a dragged library entry would land as a new tile -->
   <div id="drop-slot" class="hidden">

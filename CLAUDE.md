@@ -37,10 +37,12 @@ a single Docker container with a host directory of videos bind-mounted into it.
 |---|---|
 | `app.py` | Flask routes only (~120 lines): static files, tree, video bytes, random clip descriptors, saved mosaics. |
 | `library.py` | Library scan (`all_videos`, `build_tree`) and `ffprobe` metadata (`probe`). Owns the two metadata caches. |
-| `mosaics.py` | Saved mosaics: one JSON file per mosaic under `DATA_DIR/mosaics`, atomic writes. |
+| `mosaics.py` | Saved mosaics (and saved regie): one JSON file per mosaic under `DATA_DIR/mosaics`, atomic writes. |
+| `analysis.py` | Regia: background analysis of each video (orientation, shots, motion, brightness, colour) with ffmpeg, one JSON per file under `DATA_DIR/analysis`. |
 | `proxy.py` | ffmpeg on the server: low-res proxies for mosaics (one background worker thread) and library thumbnails. All output on disk. |
 | `static/index.html` | Full DOM skeleton. All UI elements exist up-front; JS only fills the tree, the mosaic list, and the grid. |
-| `static/script.js` | All client logic: `Tile` playback engine, GridStack management, layout presets, saved mosaics, drag interaction. |
+| `static/script.js` | Mosaic client logic: `Tile` playback engine, GridStack management, layout presets, saved mosaics, library, drag interaction. |
+| `static/smart.js` | The regia (smart mosaic): its own stage, cells, layout tree and director. Loaded after `script.js`, whose helpers it uses (section 4.12). |
 | `static/style.css` | All styling. Dark, hairline-bordered, "enterprise minimal". |
 | `Dockerfile` | `python:3.12-alpine` + `ffmpeg` (needed for `ffprobe`). |
 | `compose.yaml` | Local dev: builds the image, bind-mounts the repo for live editing. |
@@ -66,6 +68,10 @@ preset labels) must stay Italian.
 | `GET /video/<path>[?q=low]` | The video file, **streamed with HTTP Range support** (`conditional=True` → `206 Partial Content`). With `q=low`, a ready proxy if one exists, otherwise the original (and a proxy is queued). |
 | `GET /thumb/<path>` | A small JPEG frame of a video (10% in), for the library grid. Built on first request, cached on disk, `404` if ffmpeg fails. |
 | `GET /random?target=<path>[&target=<path>…]&duration=<sec>` | `{file, start, length, dur}` — a random video plus a random in-point. Each `target` may be `""` (whole library), a folder path, or an exact file path; with several (a mixed tile) the server picks a target first, then a file in it, so a small folder is not drowned by a big one. Targets with no videos are ignored. `404` if none matches or the pick vanished from disk, which makes the client refresh its tree. |
+| `GET /analysis?target=…` | Analysis worker state (`current`, `progress`, `queued`, `batch`/`done`/`failed`, `eta`, `paused`), `coverage` `[ready, total]` per target and for the whole `library`. |
+| `POST /analysis/queue` `{targets}` | Queues the not-yet-analysed videos of those scopes, ahead of the rest (`[""]` = the whole library). |
+| `POST /analysis/pause` `{paused}` | Pauses / resumes the worker; pausing kills the running ffmpeg and requeues that file. |
+| `GET /smart/pool?target=…` | The analyses of the ready videos of those scopes (a random sample of `POOL_MAX` at most). |
 | `GET /mosaics` | All saved mosaics, oldest first. |
 | `PUT /mosaics/<id>` | Creates or overwrites one mosaic (last write wins). |
 | `DELETE /mosaics/<id>` | Deletes one saved mosaic (never anything in the library). |
@@ -78,8 +84,9 @@ none must** — the kiosk only reads it.
 
 `VIDEOS_DIR` env var, default `/app/videos`. In Docker the host video directory is
 bind-mounted there (read-only would be fine). `PROXY_DIR`, default `/app/proxies`, holds
-the transcoded proxies and is a throwaway volume. `DATA_DIR`, default `/app/data`, holds
-the saved mosaics and is a volume worth keeping.
+the transcoded proxies and thumbnails and is a throwaway volume. `DATA_DIR`, default
+`/app/data`, holds the saved mosaics and the video analyses and is a volume worth
+keeping (analysing a big library takes hours).
 
 ### Memory discipline — the most important rule in this repo
 
@@ -110,6 +117,12 @@ Never buffer a transcode in memory, and never transcode inside a request. The on
 deliberate exception is a **thumbnail**: a single-frame grab (a fraction of a second),
 built inside the `/thumb` request, at most `THUMB_JOBS` at a time (semaphore), cached
 under `PROXY_DIR/thumbs` keyed on size+mtime like proxies.
+
+`analysis.py` follows the same discipline: **one** worker thread, ffmpeg under
+`nice -n 15` with 2 threads, decoding at `SAMPLE_FPS` and 160 px wide, results as
+files on disk. In memory there is only a queue of paths and a few counters. Analyses
+are named by `library.file_key()` (size + mtime), like proxies and thumbnails, so a
+rename doesn't redo the work and an edited file does.
 
 Both are guarded by `threading.Lock` because Flask runs with `threaded=True`.
 
@@ -241,9 +254,9 @@ A single tile always has sound. A mosaic is muted unless the user turns **mosaic
 audio** on (topbar `audioBtn`, `mosaicAudio`, remembered per device in localStorage):
 then every tile plays sound together, each at its own `volume` (tile editor, saved with
 the mosaic). `audible()` is the single rule, applied by `updateAudio()` and in
-`advance()`. Proxies are transcoded without audio, so with mosaic audio on `videoUrl()`
-asks for the originals, and turning it on reloads tiles currently on a proxy. Note that
-iOS Safari ignores `video.volume`. Unmuted autoplay requires a user gesture, which is why the start screen exists —
+`advance()`. Proxies carry a light AAC track (their file names end in `-a.mp4`; older
+silent proxies are simply ignored), so sound never forces the tablet back to the
+originals. Note that iOS Safari ignores `video.volume`. Unmuted autoplay requires a user gesture, which is why the start screen exists —
 the first tap both starts playback and satisfies the browser's autoplay policy.
 
 ### 4.6 Zoom modes and smart crop
@@ -349,7 +362,7 @@ every folder row (and on the library root row).
 
 ### 4.9 Interaction model (the app's whole UX)
 
-This is deliberately the entire feature set. Do not add modes.
+This is deliberately the entire feature set (plus the regia, 4.12). Do not add modes.
 
 - **Drawer** → two tabs: **Libreria** and **Mosaici** (saved mosaics, 4.8).
 - **Library** → one folder at a time (`navPath`) as a grid of cards with a preview
@@ -419,6 +432,46 @@ Any interactive control living **inside** a tile must call `stopDrag(el)`, which
 the press as the start of a tile move and the button never fires. This applies to
 `tileBtn()`, `tilePill()`, the duration panel, the timeline track, the scope chip and
 the resize corners.
+
+### 4.12 Regia (smart mosaic) — `static/smart.js` + `analysis.py`
+
+A separate mode, deliberately **not** built on tiles, GridStack, undo or the drop
+planner. Starting it snapshots the mosaic (`canvasSnap()`), clears it (releasing its
+decoders) and shows `#smart-stage`; stopping restores the snapshot. Playing anything
+else (`playScope`, `randomMosaic`, `loadMosaic`) stops it without restoring.
+
+**No machine learning.** `analysis.py` runs one ffmpeg pass per video and reads what
+ffmpeg's own filters print for each sampled frame: `scene_score` (cuts), `YDIF`
+(motion), `YAVG` (brightness), `UAVG`/`VAVG` (colour), `cropdetect` (bars baked into the
+frame), plus `ffprobe` for size and rotation. The result per file: real `aspect` of the
+content, `crop` box, and `shots: [start, end, motion, luma, u, v]` — cut where the scene
+score jumps (`SCENE_CUT`), shots shorter than `MIN_SHOT` merged.
+
+The **director** (client) is a handful of readable rules:
+- material = shots of the sources, minus black and very short ones; motion becomes a
+  percentile (`energy`) so "calm" means the same in any folder;
+- a **phase** (a few moves long) targets an energy and often a hue; the next phase
+  contrasts with the last; `pickShot()` scores shots on energy, colour, fit to the
+  cell's shape, not already on screen, not played lately, plus a little randomness;
+- clips are whole shots, or a window of a long one (`RHYTHMS[…].max`);
+- the cell count **breathes** 1 → `density` → 1 (`targetCount()`), one change per move
+  (`tick()`): grow, shrink, nudge a split, or refresh one cell;
+- layout is a **tree of splits** (`{cell}` / `{dir, ratio, a, b}`); `insert()` splits the
+  leaf where the new clip gets a frame of its own shape (vertical clips → vertical
+  cells); `detach()` gives a removed cell's space to its sibling; cells move with CSS
+  transitions;
+- each `Cell` owns two `<video>` elements (double buffer, generation counter, `_done`
+  stale-load guard, released on `destroy()`), picks its next shot for its current shape
+  when its shot ends; with more than one cell it plays proxies; all at `cfg.volume`.
+
+Sources are added by dropping library cards on the «Regia» tab or on the stage while
+it runs. The tab shows sources (with `ready/total` coverage), the knobs (ritmo,
+densità, volume), start/save, and the **analysis progress**: batch bar + count + ETA,
+current file bar, library coverage, pause/resume and "analyse the whole library". The
+stage shows a small pill while its sources are still being analysed, and a waiting
+screen until the first material is ready. Status is polled only while the tab is open
+or the regia runs with work pending. A saved regia is a mosaic with `kind: "smart"`
+and `smart: {sources, rhythm, density, volume}` — never the (always different) result.
 
 ---
 
@@ -490,20 +543,22 @@ Before considering a change to this repo done, confirm all of these still hold:
 
 1. The server never holds video **bytes** in memory; `/video` still answers `206` to
    Range requests. Proxies are files on disk, transcoded outside the request.
-2. `<video>` element count stays at `2 × tiles.size + 1` (editor preview); `Tile.destroy()` still does
+2. `<video>` element count stays at `2 × tiles.size + 1` (editor preview), or
+   `2 × cells + 1` while the regia runs; `Tile.destroy()` still does
    `removeAttribute("src")` + `load()` to release the decoder.
 3. Every `await` inside `Tile` is followed by a generation check.
 4. The grid does not gravitate (`float: true`) and adding a tile never re-lays-out the
    mosaic: `placeNew()` uses free space, or halves a single tile as a last resort.
 5. Controls inside tiles still call `stopDrag()`.
-6. `audible()` decides sound: one tile, or mosaic audio on. Whenever a tile is meant to
-   be heard it plays the original file, never the silent proxy.
+6. `audible()` decides sound: one tile, or mosaic audio on. Proxies carry audio.
 7. The app never writes to or deletes from the video library; the only things it writes
-   are proxies and mosaic JSON files, and mosaic ids are validated before becoming file
+   are proxies, thumbnails, analyses and mosaic JSON files, and mosaic ids are validated before becoming file
    names.
 8. UI strings are Italian; code and comments are English.
 9. No new runtime dependencies, no build step.
 10. Every canvas change goes through `remember()` first, so it can be undone.
+11. The regia stays separate: it uses no `Tile`, no GridStack, no undo, and analysis
+    never runs inside a request.
 
 ## 8. Working agreements
 

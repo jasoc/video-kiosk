@@ -29,6 +29,11 @@ no build step. One Docker container, one folder of videos.
   players in a random layout, all looping clips from that folder.
 - **Saved mosaics** — name a composition and restore it later, geometry and per-tile
   settings included. Stored on the server, so every device sees the same list.
+- **Regia (smart mosaic)** — drop folders on the «Regia» tab and let it compose by
+  itself: shots cut where the video cuts, cells that breathe from one to many, vertical
+  clips in vertical cells, phases of calm and movement, colours that belong together. No
+  machine learning: the server analyses every video once with ffmpeg (progress shown in
+  the tab), and a few simple rules do the rest. Save a regia like a mosaic.
 - **Smooth transitions** — every tile double-buffers two `<video>` elements and
   prefetches the next clip, so changes are instant crossfades with no loading flash.
 - **Flat memory usage** — the server streams bytes with HTTP Range support and keeps no
@@ -115,13 +120,14 @@ The app never modifies the video library: organise your files outside of it.
 
 ## Architecture
 
-- **Backend** — Flask (`app.py`, ~120 lines). Serves the folder tree, streams video
-  files with Range support, returns random clip descriptors and stores saved mosaics
-  as JSON files. Caches only metadata
-  (file list and `ffprobe` durations), never video bytes.
-- **Frontend** — vanilla HTML/CSS/JS (`static/`). GridStack handles mosaic drag and
-  resize; everything else is hand-rolled.
-- **Image** — `python:3.12-alpine` plus `ffmpeg` (for `ffprobe` duration probing).
+- **Backend** — Flask. Serves the folder tree, streams video files with Range support,
+  returns random clip descriptors, stores saved mosaics as JSON files, builds low-res
+  proxies and thumbnails, and analyses videos for the regia — all ffmpeg work runs in
+  the background or is cached on disk. Caches only metadata in memory, never video
+  bytes.
+- **Frontend** — vanilla HTML/CSS/JS (`static/`). GridStack lays the mosaic out; moving,
+  resizing and everything else is hand-rolled. The regia lives in `static/smart.js`.
+- **Image** — `python:3.12-alpine` plus `ffmpeg`.
 
 Contributors and coding agents: see [CLAUDE.md](CLAUDE.md) for the detailed design
 notes, playback internals, and the invariants that must not be broken.

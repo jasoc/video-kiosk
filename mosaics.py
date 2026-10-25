@@ -60,6 +60,10 @@ def save(mid, data):
         "created": data.get("created") or int(time.time() * 1000),
         "tiles": [t for t in data["tiles"] if isinstance(t, dict)][:MAX_TILES],
     }
+    # A saved regia keeps its sources and knobs, not tiles.
+    if data.get("kind") == "smart" and isinstance(data.get("smart"), dict):
+        m["kind"] = "smart"
+        m["smart"] = data["smart"]
     os.makedirs(MOSAIC_DIR, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=MOSAIC_DIR, suffix=".tmp")
     try:

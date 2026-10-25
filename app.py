@@ -11,6 +11,7 @@ import random
 
 from flask import Flask, jsonify, request, send_from_directory
 
+import analysis
 import library
 import mosaics
 import proxy
@@ -49,16 +50,6 @@ def thumb(p):
     return send_from_directory(proxy.THUMB_DIR, name, max_age=7 * 86400)
 
 
-def _pool(videos, target):
-    """Videos matching one scope: "" (all), an exact file, or a folder."""
-    if not target:
-        return videos
-    if target in videos:
-        return [target]
-    prefix = target + "/"
-    return [v for v in videos if v.startswith(prefix)]
-
-
 @app.route("/random")
 def random_clip():
     # A tile can mix several scopes (repeated `target`) and leave single
@@ -71,7 +62,7 @@ def random_clip():
     videos = library.all_videos()
     if skip:
         videos = [v for v in videos if v not in skip]
-    pools = [p for p in (_pool(videos, t) for t in targets) if p]
+    pools = [p for p in (library.in_scope(videos, t) for t in targets) if p]
     if not pools:
         return jsonify({"error": "no videos"}), 404
 
@@ -90,6 +81,35 @@ def random_clip():
 
     return jsonify({"file": rel, "start": round(start, 2),
                     "length": round(length, 2), "dur": round(dur, 2)})
+
+
+# --- regia: video analysis -------------------------------------------
+def _targets():
+    return [t.strip("/") for t in request.args.getlist("target")]
+
+
+@app.get("/analysis")
+def analysis_status():
+    return jsonify(analysis.status(_targets()))
+
+
+@app.post("/analysis/queue")
+def analysis_queue():
+    d = request.get_json(silent=True) or {}
+    targets = [str(t).strip("/") for t in d.get("targets") or [] if isinstance(t, str)]
+    return jsonify({"queued": analysis.enqueue(targets)})
+
+
+@app.post("/analysis/pause")
+def analysis_pause():
+    d = request.get_json(silent=True) or {}
+    analysis.set_paused(d.get("paused"))
+    return jsonify({"ok": True})
+
+
+@app.get("/smart/pool")
+def smart_pool():
+    return jsonify(analysis.pool(_targets() or [""], set(request.args.getlist("skip"))))
 
 
 # --- saved mosaics ----------------------------------------------------

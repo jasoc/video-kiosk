@@ -16,7 +16,6 @@ disk (PROXY_DIR/thumbs) forever.
 Every client-supplied path is checked against the library list first.
 """
 
-import hashlib
 import logging
 import os
 import queue
@@ -46,10 +45,10 @@ def low_res(rel):
     if not library.is_video(rel):
         return None
     src = library.abspath(rel)
-    key = _key(src)
+    key = library.file_key(src)
     if key is None:
         return None
-    name = key + ".mp4"
+    name = key + "-a.mp4"           # "-a": proxies carry an audio track
     if os.path.isfile(os.path.join(PROXY_DIR, name)):
         return name
     _enqueue(rel, src, name)
@@ -61,7 +60,7 @@ def thumb(rel):
     if not library.is_video(rel):
         return None
     src = library.abspath(rel)
-    key = _key(src)
+    key = library.file_key(src)
     if key is None:
         return None
     name = key + ".jpg"
@@ -91,16 +90,6 @@ def thumb(rel):
     return name
 
 
-def _key(src):
-    """Stable cache key of a source file, on size+mtime so edits invalidate it."""
-    try:
-        st = os.stat(src)
-    except OSError:
-        return None
-    key = f"{st.st_size}:{int(st.st_mtime)}".encode()
-    return hashlib.sha1(key).hexdigest()[:16]
-
-
 def _enqueue(rel, src, name):
     with _lock:
         if name in _queued or name in _failed:
@@ -123,7 +112,8 @@ def _worker():
                 ["ffmpeg", "-v", "error", "-y", "-i", src,
                  "-vf", f"scale=-2:{PROXY_HEIGHT}",
                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
-                 "-an", "-movflags", "+faststart", tmp],
+                 "-c:a", "aac", "-b:a", "96k", "-ac", "2",
+                 "-movflags", "+faststart", tmp],
                 check=True, stderr=subprocess.DEVNULL,
             )
             os.replace(tmp, dst)

@@ -516,7 +516,7 @@ an inline script in `<head>` before the first paint). They all share the black:
 | `pellicola` | film, warm work | amber, paper text | Space Grotesk | 10–18 px |
 | `ghiaccio` | anything, quietly | cyan | Inter | 6–10 px |
 | `vetro` | showpiece | Apple-style liquid glass: lens surfaces, blur + saturate + brighten, specular rims, glossy white primary pill | Manrope | 16–28 px, capsules |
-| `luci` | nude, the fun way | sexy-shop neon: lipstick red → hot pink, velvet blacks, glowing tubes | Space Grotesk, Bebas Neue, Mr Dafoe sign (breathing, flickering) | capsules |
+| `luci` | nude ("naked") | skin tones cocoa → peach, dim red light from above, soft red halo | Jost, Bodoni Moda italic (titles, tabs, labels) | capsules |
 | `atelier` | luxury, haute couture | black + champagne gold foil, spaced capitals | Jost, Cormorant Garamond | square |
 | `galleria` | products, still life | black and white only, no colour | Archivo | square |
 | `festa` | birthdays, parties | confetti gradient (pink, sun, sky), bouncing title | Fredoka | round, capsules |

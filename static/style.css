@@ -148,45 +148,46 @@
   --r-btn: 999px;
 }
 
-/* Luci rosse: the neon of a sexy shop at night. Lipstick red melting
-   into hot pink, velvet blacks, tubes that glow, a script sign that
-   breathes (and now and then flickers). */
+/* Luci rosse: "naked", for nude work. Skin tones from cocoa to peach,
+   a dim red light falling from above, a soft red halo instead of hard
+   lines, the high-contrast italic serif of fashion editorials. Sensual
+   and quiet; the photos do the rest. */
 :root[data-theme="luci"] {
-  --panel: #070004;
-  --panel-2: #13000a;
-  --panel-3: #260012;
-  --line: #3d0420;
-  --line-strong: #66072f;
-  --text: #ffd6e7;
-  --text-2: #f07aa8;
-  --text-3: #94405f;
-  --accent: #ff2d8a;
-  --accent-2: #ff1a3c;
-  --accent-ink: #200008;
-  --accent-dim: rgba(255, 45, 138, 0.16);
-  --accent-soft: rgba(60, 0, 24, 0.92);
-  --accent-fill: linear-gradient(90deg, #ff1a3c, #ff2d8a);
-  --surface: radial-gradient(130% 90% at 0% 0%, rgba(255, 26, 60, 0.12), transparent 60%),
-             radial-gradient(100% 80% at 100% 100%, rgba(255, 45, 138, 0.08), transparent 60%),
-             #070004;
-  --font: "Space Grotesk", system-ui, sans-serif;
+  --panel: #070303;
+  --panel-2: #120807;
+  --panel-3: #22110e;
+  --line: #2e1915;
+  --line-strong: #4a2a23;
+  --text: #f3dccf;
+  --text-2: #c9a08c;
+  --text-3: #7e5a4c;
+  --accent: #e3a588;
+  --accent-2: #c0392b;
+  --accent-ink: #2a120a;
+  --accent-dim: rgba(227, 165, 136, 0.14);
+  --accent-soft: rgba(50, 20, 14, 0.92);
+  --accent-fill: linear-gradient(90deg, #8a5a44, #d9a083 55%, #f0c9b0);
+  --surface: radial-gradient(120% 80% at 50% 0%, rgba(200, 30, 20, 0.14), transparent 65%), #070303;
+  --font: "Jost", system-ui, sans-serif;
   --font-size: 14px;
-  --font-display: "Bebas Neue", "Space Grotesk", sans-serif;
-  --tab-size: 19px;
-  --label-size: 17px;
-  --label-spacing: 0.06em;
-  --font-title: "Mr Dafoe", "Bebas Neue", cursive;
-  --title-size: 76px;
+  --font-display: "Bodoni Moda", Didot, serif;
+  --tab-size: 17px;
+  --label-size: 14px;
+  --label-style: italic;
+  --label-spacing: 0.02em;
+  --font-title: "Bodoni Moda", Didot, serif;
+  --title-size: 64px;
   --title-weight: 400;
-  --title-spacing: 0;
-  --title-anim: breathe 4s ease-in-out infinite, neon 9s infinite;
-  --neon: 0 0 0 1px rgba(255, 90, 165, 0.95), 0 0 8px rgba(255, 45, 138, 0.8),
-          0 0 22px rgba(255, 26, 60, 0.55), 0 0 44px rgba(255, 26, 60, 0.25);
-  --glow: 0 0 4px rgba(255, 130, 185, 0.9), 0 0 14px rgba(255, 45, 138, 0.8),
-          0 0 32px rgba(255, 26, 60, 0.6);
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
+  --title-style: italic;
+  --title-spacing: -0.01em;
+  --title-fill: linear-gradient(90deg, #b07a60, #f2cdb6 50%, #d49478);
+  --title-color: transparent;
+  --title-anim: breathe 6s ease-in-out infinite;
+  --neon: 0 0 0 1px rgba(227, 165, 136, 0.45), 0 0 18px rgba(200, 30, 20, 0.35);
+  --glow: 0 0 14px rgba(200, 40, 30, 0.45);
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
   --r-btn: 999px;
 }
 
@@ -1480,6 +1481,7 @@ body.smart-on #audioBtn { display: none; }
 /* A gradient-painted title can't carry a text-shadow (it would show
    through the transparent text). */
 :root[data-theme="atelier"] .start-inner h1,
+:root[data-theme="luci"] .start-inner h1,
 :root[data-theme="festa"] .start-inner h1 { text-shadow: none; }
 
 /* a sign with a tired tube: mostly on, now and then a flicker */
